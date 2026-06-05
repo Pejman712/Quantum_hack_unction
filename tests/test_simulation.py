@@ -20,7 +20,9 @@ def _deterministic_circuit() -> QuantumCircuit:
 
 
 def test_statevector_returns_definite_bitstring():
-    assert statevector_simulation(_deterministic_circuit()) == "001"
+    bitstring, prob = statevector_simulation(_deterministic_circuit())
+    assert bitstring == "001"
+    assert prob == pytest.approx(1.0)
 
 
 def test_statevector_does_not_mutate_input():
@@ -33,7 +35,9 @@ def test_statevector_does_not_mutate_input():
 
 def test_matrix_product_operators_returns_definite_bitstring():
     # measure_all prefixes the register name, e.g. "001" stays "001" here.
-    assert matrix_product_operators(_deterministic_circuit(), shots=256) == "001"
+    bitstring, prob = matrix_product_operators(_deterministic_circuit(), shots=256)
+    assert bitstring == "001"
+    assert prob == pytest.approx(1.0)
 
 
 def test_matrix_product_operators_does_not_mutate_input():
@@ -52,6 +56,7 @@ def test_statevector_and_matrix_product_operators_agree_on_deterministic_circuit
 @pytest.mark.skipif(not SAMPLE_QASM.exists(), reason="sample QASM not present")
 def test_runs_on_real_qasm_circuit():
     qc = QuantumCircuit.from_qasm_file(str(SAMPLE_QASM))
-    peak = statevector_simulation(qc)
+    peak, prob = statevector_simulation(qc)
     assert len(peak) == qc.num_qubits
     assert set(peak) <= {"0", "1"}
+    assert 0.0 <= prob <= 1.0

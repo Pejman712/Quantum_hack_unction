@@ -60,9 +60,11 @@ def test_iter_challenges_func_none_yields_circuits(tmp_path):
 
 def test_iter_challenges_default_func_runs_matrix_product_operators(tmp_path):
     data_dir = _make_data_dir(tmp_path)
-    # Default func is matrix_product_operators; the |1> circuit must yield bitstring "1".
+    # Default func is matrix_product_operators, which returns (bitstring, probability);
+    # the |1> circuit must yield bitstring "1".
     results = dict(iter_challenges("very_easy", data_dir=data_dir))
-    assert results["very_easy/a"] == "1"
+    bitstring, _ = results["very_easy/a"]
+    assert bitstring == "1"
 
 
 def test_iter_challenges_accepts_custom_func(tmp_path):

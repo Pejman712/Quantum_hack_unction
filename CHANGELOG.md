@@ -32,4 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setup.ps1`, a `pre-push` lint+test hook, GitHub Actions CI, and a pull-request template.
 - **Documentation** — `README.md` and `GUIDE.md`.
 
+### Fixed
+
+- Aligned the test suite with the current API: the simulators return
+  `(bitstring, probability)` tuples, and `circuit_stats` reports metrics in the
+  normalized `rz`/`rx`/`cx` basis.
+
 [Unreleased]: https://github.com/Pejman712/Quantum_hack_unction/commits/main
