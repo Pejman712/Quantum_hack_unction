@@ -1,0 +1,21 @@
+#!/bin/sh
+# Run lint + tests before allowing a push. Enable once per clone with:
+#   git config core.hooksPath .githooks
+set -e
+
+if command -v uv >/dev/null 2>&1; then
+    run="uv run"
+else
+    run="python -m"
+fi
+
+echo "pre-push: checking import sorting (ruff isort)..."
+$run ruff check --select I .
+
+echo "pre-push: linting (ruff)..."
+$run ruff check .
+
+echo "pre-push: running test suite..."
+$run pytest
+
+echo "pre-push: lint and tests passed."
