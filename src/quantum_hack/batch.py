@@ -216,7 +216,7 @@ def _solve_with_budget(
     proc = ctx.Process(
         target=_solve_worker,
         args=(queue, solver, path, challenge, records, solve_kwargs),
-        daemon=True,
+        daemon=False,  # must be False: cotengra's HyperOptimizer spawns child workers
     )
     proc.start()
     try:
