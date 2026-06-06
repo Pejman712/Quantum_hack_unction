@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 from qiskit import QuantumCircuit
 
-from quantum_hack.simulation import matrix_product_operators, statevector_simulation
+from quantum_hack.simulation import (
+    matrix_product_operators,
+    mps_sample_counts,
+    statevector_probability,
+    statevector_simulation,
+)
 
 SAMPLE_QASM = Path("qasm_data/very_easy/challenge-8_1.qasm")
 
@@ -151,6 +156,28 @@ def test_matrix_product_operators_handles_circuit_wider_than_default_backend():
     assert len(bitstring) == 64
     assert prob == pytest.approx(1.0)
     assert bitstring.count("1") == 2  # deterministic: exactly the two flipped qubits
+
+
+def test_statevector_probability_matches_definite_outcome():
+    assert statevector_probability(_deterministic_circuit(), "001") == pytest.approx(1.0)
+    assert statevector_probability(_deterministic_circuit(), "000") == pytest.approx(0.0)
+
+
+def test_statevector_probability_splits_skewed_circuit():
+    assert statevector_probability(_skewed_circuit(), "0") == pytest.approx(0.75)
+    assert statevector_probability(_skewed_circuit(), "1") == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("bad", ["01", "012", "0z1"])
+def test_statevector_probability_rejects_bad_bitstring(bad):
+    with pytest.raises(ValueError, match="binary chars"):
+        statevector_probability(_deterministic_circuit(), bad)
+
+
+def test_mps_sample_counts_sum_to_shots_and_match_outcome():
+    counts = mps_sample_counts(_deterministic_circuit(), shots=256)
+    assert sum(counts.values()) == 256
+    assert max(counts, key=lambda b: counts[b]) == "001"
 
 
 @pytest.mark.skipif(not SAMPLE_QASM.exists(), reason="sample QASM not present")

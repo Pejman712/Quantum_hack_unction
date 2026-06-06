@@ -10,6 +10,7 @@ Two strategies are provided:
 
 from typing import overload
 
+import numpy as np
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit.library.standard_gates import get_standard_gate_name_mapping
 from qiskit.quantum_info import Statevector
@@ -68,26 +69,29 @@ def _print_ranking(ranking: list[tuple[str, float]]) -> None:
 
 @overload
 def statevector_simulation(
-    qc: QuantumCircuit, verbose: bool = ..., *, top_n: None = ...
+    qc: QuantumCircuit, verbose: bool = ..., *, top_n: None = ..., device: str = ...
 ) -> tuple[str, float]: ...
 @overload
 def statevector_simulation(
-    qc: QuantumCircuit, verbose: bool = ..., *, top_n: int
+    qc: QuantumCircuit, verbose: bool = ..., *, top_n: int, device: str = ...
 ) -> list[tuple[str, float]]: ...
 def statevector_simulation(
-    qc: QuantumCircuit, verbose: bool = False, *, top_n: int | None = None
+    qc: QuantumCircuit, verbose: bool = False, *, top_n: int | None = None, device: str = "CPU"
 ) -> tuple[str, float] | list[tuple[str, float]]:
     """Return the most likely measurement bitstring via exact statevector simulation.
 
-    Measurements are removed first because :class:`~qiskit.quantum_info.Statevector`
-    operates on a unitary circuit acting on the all-zero state. The input circuit is
-    left untouched.
+    Measurements are removed first because the simulation operates on a unitary circuit
+    acting on the all-zero state. The input circuit is left untouched.
 
     Args:
         qc (QuantumCircuit): Circuit to simulate.
         verbose (bool): If ``True``, print the result(s).
         top_n (int | None): If ``None`` (default), return only the single peak. If a
             positive integer, return the ``top_n`` most likely bitstrings instead.
+        device (str): ``"CPU"`` (default) uses the exact in-process
+            :class:`~qiskit.quantum_info.Statevector`. Any other value (e.g. ``"GPU"``) runs
+            Qiskit Aer's statevector simulator on that device (used on LUMI's GPUs); Aer must
+            be built with support for it or the call raises.
 
     Returns:
         tuple[str, float] | list[tuple[str, float]]: When ``top_n`` is ``None``, the
@@ -100,23 +104,107 @@ def statevector_simulation(
     qc_no_meas = qc.remove_final_measurements(inplace=False)
     assert qc_no_meas is not None  # inplace=False always returns a new circuit
 
-    sv = Statevector.from_instruction(qc_no_meas)
+    if device == "CPU":
+        sv = Statevector.from_instruction(qc_no_meas)
+    else:
+        sim = AerSimulator(method="statevector", device=device)
+        circ = qc_no_meas.copy()
+        circ.save_statevector()
+        qc_t = transpile(circ, basis_gates=_simulator_basis_gates(sim))
+        sv = Statevector(sim.run(qc_t).result().get_statevector())
 
-    probs = sv.probabilities_dict()  # bitstring -> probability
+    # Work on the raw probability array (index == basis-state integer, qubit 0 is the LSB) rather
+    # than probabilities_dict(): the dict materialises a string label for every one of the 2**n
+    # basis states (~4 GiB at 24 qubits), which is what limited exact simulation to tiny circuits.
+    prob_array = sv.probabilities()
+    num_qubits = qc_no_meas.num_qubits
 
     if top_n is not None:
-        ranking = _ranked(probs, top_n)
+        if top_n < 1:
+            raise ValueError(f"top_n must be a positive integer, got {top_n}")
+        k = min(top_n, prob_array.size)
+        top_indices = np.argpartition(prob_array, -k)[-k:]
+        top_indices = top_indices[np.argsort(prob_array[top_indices])[::-1]]
+        ranking = [
+            (format(int(i), f"0{num_qubits}b"), float(prob_array[i]))
+            for i in top_indices
+            if prob_array[i] > 0.0
+        ]
         if verbose:
             _print_ranking(ranking)
         return ranking
 
-    peak_bitstring = max(probs, key=lambda b: probs[b])
-    peak_prob = probs[peak_bitstring]
+    peak_index = int(np.argmax(prob_array))
+    peak_bitstring = format(peak_index, f"0{num_qubits}b")
+    peak_prob = float(prob_array[peak_index])
 
     if verbose:
         print("Most likely bitstring:", peak_bitstring)
         print("Peak probability:", peak_prob)
     return peak_bitstring, peak_prob
+
+
+def mps_sample_counts(
+    qc: QuantumCircuit,
+    shots: int = 4096,
+    bond_dim: int = 64,
+    *,
+    device: str = "CPU",
+) -> dict[str, int]:
+    """Sample measurement counts via the matrix-product-state (MPS) simulator.
+
+    The input circuit is left untouched: any final measurements are removed and a full
+    ``measure_all`` is added on a copy before sampling. Returning raw counts lets callers
+    compute both the most-frequent bitstring and per-qubit marginals from one run.
+
+    Args:
+        qc (QuantumCircuit): Circuit to sample.
+        shots (int): Number of measurement shots to draw.
+        bond_dim (int): Maximum MPS bond dimension.
+        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI ``standard-g``).
+
+    Returns:
+        dict[str, int]: Mapping of measured bitstring to shot count (Qiskit ordering).
+    """
+    qc_copy = qc.remove_final_measurements(inplace=False)
+    assert qc_copy is not None  # inplace=False always returns a new circuit
+    qc_copy.measure_all()
+
+    sim = AerSimulator(
+        method="matrix_product_state",
+        matrix_product_state_max_bond_dimension=bond_dim,
+        device=device,
+    )
+
+    qc_t = transpile(qc_copy, basis_gates=_simulator_basis_gates(sim))
+    return sim.run(qc_t, shots=shots).result().get_counts()
+
+
+def statevector_probability(qc: QuantumCircuit, bitstring: str) -> float:
+    """Return the exact probability of measuring ``bitstring`` via statevector simulation.
+
+    Used as the amplitude oracle for local-max checks and greedy refinement on circuits small
+    enough for an exact statevector. The input circuit is left untouched.
+
+    Args:
+        qc (QuantumCircuit): Circuit to simulate.
+        bitstring (str): Target bitstring in Qiskit ordering (rightmost char is qubit 0). Its
+            length must equal the circuit's qubit count.
+
+    Returns:
+        float: The probability of ``bitstring`` in ``[0, 1]``.
+
+    Raises:
+        ValueError: If ``bitstring`` is not the circuit's width or contains non-binary chars.
+    """
+    qc_no_meas = qc.remove_final_measurements(inplace=False)
+    assert qc_no_meas is not None  # inplace=False always returns a new circuit
+    n = qc_no_meas.num_qubits
+    if len(bitstring) != n or set(bitstring) - {"0", "1"}:
+        raise ValueError(f"bitstring must be {n} binary chars, got {bitstring!r}")
+    sv = Statevector.from_instruction(qc_no_meas)
+    amp = sv.data[int(bitstring, 2)]
+    return float((amp.conjugate() * amp).real)
 
 
 @overload
@@ -127,6 +215,7 @@ def matrix_product_operators(
     verbose: bool = ...,
     *,
     top_n: None = ...,
+    device: str = ...,
 ) -> tuple[str, float]: ...
 @overload
 def matrix_product_operators(
@@ -136,6 +225,7 @@ def matrix_product_operators(
     verbose: bool = ...,
     *,
     top_n: int,
+    device: str = ...,
 ) -> list[tuple[str, float]]: ...
 def matrix_product_operators(
     qc: QuantumCircuit,
@@ -144,6 +234,7 @@ def matrix_product_operators(
     verbose: bool = False,
     *,
     top_n: int | None = None,
+    device: str = "CPU",
 ) -> tuple[str, float] | list[tuple[str, float]]:
     """Estimate the most likely bitstring via shot-based MPS sampling.
 
@@ -157,6 +248,7 @@ def matrix_product_operators(
         verbose (bool): If ``True``, print the result(s).
         top_n (int | None): If ``None`` (default), return only the single peak. If a
             positive integer, return the ``top_n`` most sampled bitstrings instead.
+        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI ``standard-g``).
 
     Returns:
         tuple[str, float] | list[tuple[str, float]]: When ``top_n`` is ``None``, the
@@ -167,18 +259,7 @@ def matrix_product_operators(
     Raises:
         ValueError: If ``top_n`` is given and is less than 1.
     """
-    qc_copy = qc.remove_final_measurements(inplace=False)
-    assert qc_copy is not None  # inplace=False always returns a new circuit
-    qc_copy.measure_all()
-
-    sim = AerSimulator(
-        method="matrix_product_state",
-        matrix_product_state_max_bond_dimension=bond_dim,
-    )
-
-    qc_t = transpile(qc_copy, basis_gates=_simulator_basis_gates(sim))
-    result = sim.run(qc_t, shots=shots).result()
-    counts = result.get_counts()
+    counts = mps_sample_counts(qc, shots=shots, bond_dim=bond_dim, device=device)
     probs = {bitstring: count / shots for bitstring, count in counts.items()}
 
     if top_n is not None:
