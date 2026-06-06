@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Add majority bit string function to get answer out of low probability string.
+
 ### Added
 
 - **`quantum_hack` package** — the core circuit toolkit:
