@@ -1,0 +1,11 @@
+# Normalize all text files to LF in the repository and on checkout, so line
+# endings stay consistent across platforms and the git hooks (run by /bin/sh)
+# never break on a Windows CRLF checkout.
+* text=auto eol=lf
+
+# Be explicit for shell scripts and the hooks directory.
+*.sh        text eol=lf
+.githooks/* text eol=lf
+
+# Binary assets: never apply text or line-ending conversion.
+*.png       binary
