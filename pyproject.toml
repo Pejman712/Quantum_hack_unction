@@ -3,13 +3,13 @@ name = "quantum-hack-unction"
 version = "0.1.0"
 description = "QASM circuit tooling for the quantum hackathon: peak-bitstring estimation and gate stripping."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
-    "matplotlib>=3.10.9",
-    "mqt-qcec>=3.6.1",
+    "matplotlib>=3.9.0",
+    "mqt-qcec>=3.0.0",
     "pylatexenc>=2.10",
-    "qiskit>=2.4.1",
-    "qiskit-aer>=0.17.2",
+    "qiskit>=1.2",
+    "qiskit-aer>=0.13.0",
 ]
 
 [project.scripts]
@@ -20,8 +20,7 @@ quantum-hack = "quantum_hack.cli:main"
 # Requires CUDA 11.x/12.x and NVIDIA drivers.  qiskit-aer-gpu replaces
 # qiskit-aer and ships the cuStateVec / GPU-MPS backends.
 gpu = [
-    "qiskit-aer-gpu>=0.15.0",
-    "cuquantum-python-cu12>=24.3.0",
+    "qiskit-aer-gpu>=0.13.0",
     "mpi4py>=3.1.0",
 ]
 
