@@ -54,7 +54,7 @@ def _wrap_to_pi(angle: float) -> float:
 
 
 def snap_rotations_to_pi_over_4(
-    qc: QuantumCircuit, threshold: float = 0.01
+    qc: QuantumCircuit, threshold: float = 0.01, snap_rz_to_zero: bool = False
 ) -> QuantumCircuit:
     """Return a copy of ``qc`` with near-grid RZ/RX angles snapped to a multiple of pi/4.
 
@@ -64,9 +64,10 @@ def snap_rotations_to_pi_over_4(
     is ``threshold * pi/4`` (default ``0.01`` -> 1% of pi/4). Because the pi/4 grid
     repeats every 2*pi, the wrap does not change which multiple is nearest.
 
-    An RZ is never snapped to 0 (a multiple of 2*pi): zeroing it would discard a
-    real, if small, phase, so such an RZ keeps its original angle. RX may still
-    snap to 0.
+    By default an RZ is never snapped to 0 (a multiple of 2*pi): zeroing it would
+    discard a real, if small, phase, so such an RZ keeps its original angle. Set
+    ``snap_rz_to_zero`` to True to allow RZ angles near a multiple of 2*pi to snap
+    to 0 as well. RX always snaps to 0 regardless of this flag.
 
     Gates other than RZ/RX, and any RZ/RX whose angle is a symbolic (unbound)
     parameter, are left untouched. Qubits, clbits, and measurements are preserved.
@@ -74,6 +75,8 @@ def snap_rotations_to_pi_over_4(
     Args:
         qc (QuantumCircuit): Circuit whose rotation angles should be snapped.
         threshold (float): Snap tolerance as a fraction of the pi/4 grid spacing.
+        snap_rz_to_zero (bool): If True, allow near-zero RZ angles to snap to 0.
+            If False (default), RZ angles are never snapped to 0.
 
     Returns:
         QuantumCircuit: A new circuit with near-grid RZ/RX angles snapped to multiples of pi/4.
@@ -90,9 +93,12 @@ def snap_rotations_to_pi_over_4(
             else:
                 steps = round(angle / PI_OVER_4)
                 snapped = steps * PI_OVER_4
-                # Never snap an RZ to 0 (steps a multiple of 8 -> a multiple of 2*pi):
-                # zeroing an RZ would discard a real phase. RX may still snap to 0.
-                snaps_rz_to_zero = op.name == "rz" and steps % 8 == 0
+                # Unless snap_rz_to_zero is set, never snap an RZ to 0 (steps a
+                # multiple of 8 -> a multiple of 2*pi): zeroing an RZ would discard
+                # a real phase. RX may always snap to 0.
+                snaps_rz_to_zero = (
+                    op.name == "rz" and steps % 8 == 0 and not snap_rz_to_zero
+                )
                 if abs(angle - snapped) <= tolerance and not snaps_rz_to_zero:
                     op = op.copy()
                     op.params = [_wrap_to_pi(snapped)]

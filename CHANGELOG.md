@@ -12,8 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`quantum_hack` package** — the core circuit toolkit:
   - `simulation` — `statevector_simulation` (exact peak bitstring) and
     `matrix_product_operators` (approximate, shot-based MPS estimate for larger circuits).
-  - `strip` — `strip_rz_and_cx_from_start` and `strip_rz_from_end` to drop leading/trailing
-    rotation gates per qubit.
+    Both accept `top_n` to return the N most likely `(bitstring, probability)` pairs
+    instead of just the peak, and `verbose` to print the result(s).
+  - `strip` — `strip_rz_and_cx_from_start`, `strip_rz_from_start`, and `strip_rz_from_end`
+    to drop leading/trailing rotation gates per qubit, plus `strip` to apply the leading
+    RZ/CX and trailing RZ passes together.
   - `transform` — `transpile_to_basis` (rewrite to an `rx`/`rz`/`cx` basis) and
     `snap_rotations_to_pi_over_4` (snap near-grid angles to multiples of π/4).
   - `metrics` — `circuit_stats` and `compare_circuits` for before/after depth, size, and
@@ -22,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     treating equivalence up to global/relative phase as equivalent.
   - `viz` — `save_circuit_drawing`, `save_cx_drawing`, `cx_only_circuit`, and
     `save_counts_histogram`.
-  - `challenges` — `load_circuit` and `iter_challenges` to load and batch over the
+  - `challenges` — `load_circuit`, `find_challenge` (locate a challenge's QASM file by name
+    across difficulty folders), and `iter_challenges` to load and batch over the
     `qasm_data/` set by difficulty.
 - **`quantum-hack` CLI** — render a circuit plus its transpiled and optimized variants to
   `circuit_drawings/` (`--out-dir`, `--no-timestamp`).
@@ -34,9 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `snap_rotations_to_pi_over_4` never snaps an RZ to 0 (or to a multiple of 2*pi):
-  zeroing an RZ would discard a real phase, so such an RZ keeps its original angle.
-  RX angles still snap to 0.
+- `snap_rotations_to_pi_over_4` never snaps an RZ to 0 (or to a multiple of 2*pi)
+  by default: zeroing an RZ would discard a real phase, so such an RZ keeps its
+  original angle. RX angles still snap to 0. Pass `snap_rz_to_zero=True` to opt in
+  to snapping near-zero RZ angles to 0 as well.
 
 ### Fixed
 
