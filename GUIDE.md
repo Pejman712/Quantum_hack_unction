@@ -63,6 +63,25 @@ works for all of it.
   `("<difficulty>/<stem>", func(circuit))`. Restrict to one tier with `difficulty="easy"`;
   pass `func=None` to get the raw `QuantumCircuit` instead of a computed value.
 
+### `results` — tracking which submissions worked
+
+Submitted peak-bitstring guesses are logged in `results/<difficulty>_bitstrings.csv`
+(columns `challenge, qubits, method, bitstring, probability, status`, where `status` is
+`success` / `failed` / `pending`).
+
+- `load_results(results_dir="results") -> list[SubmissionRecord]` — parse every row across
+  all `*_bitstrings.csv` files into `SubmissionRecord`s (difficulty is derived from the
+  filename).
+- `challenge_status(challenge, *, results_dir="results", records=None) -> ChallengeStatus`
+  — aggregate **all** submissions for one challenge. `worked` is `True` if any succeeded,
+  `False` if attempts exist but all failed, `None` if untried/only pending. A challenge may
+  have several failed bitstrings; they are all collected in `.failed_bitstrings`, and
+  `.summary` (also `str(status)`) is a one-line suggestion. Accepts a bare name, an
+  `iter_challenges` name (`"easy/challenge-16_12"`), or a path. Pass `records=` to query
+  pre-loaded records instead of reading disk.
+- `is_known_failure(challenge, bitstring, *, results_dir="results", records=None) -> bool`
+  — `True` if that bitstring was already submitted for the challenge and rejected.
+
 ### `simulation` — peak bitstrings
 
 - `statevector_simulation(qc, verbose=False) -> tuple[str, float]` — exact peak bitstring

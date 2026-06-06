@@ -11,8 +11,28 @@ Two strategies are provided:
 from typing import overload
 
 from qiskit import QuantumCircuit, transpile
+from qiskit.circuit.library.standard_gates import get_standard_gate_name_mapping
 from qiskit.quantum_info import Statevector
 from qiskit_aer import AerSimulator
+
+
+def _simulator_basis_gates(sim: AerSimulator) -> list[str]:
+    """Return the simulator's natively supported standard gate names.
+
+    Filters the backend's advertised basis down to gates the transpiler accepts
+    as ``basis_gates`` (dropping non-standard entries such as ``kraus`` and
+    ``quantum_channel``). Transpiling against this basis decomposes unsupported
+    gates without binding to the backend target, whose memory-based qubit ceiling
+    is meaningless for the MPS method and otherwise rejects wide circuits.
+
+    Args:
+        sim (AerSimulator): The simulator whose basis to inspect.
+
+    Returns:
+        list[str]: Standard gate names supported by ``sim``.
+    """
+    standard = set(get_standard_gate_name_mapping())
+    return [gate for gate in sim.configuration().basis_gates if gate in standard]
 
 
 def _ranked(probs: dict[str, float], top_n: int) -> list[tuple[str, float]]:
@@ -156,7 +176,7 @@ def matrix_product_operators(
         matrix_product_state_max_bond_dimension=bond_dim,
     )
 
-    qc_t = transpile(qc_copy, sim)
+    qc_t = transpile(qc_copy, basis_gates=_simulator_basis_gates(sim))
     result = sim.run(qc_t, shots=shots).result()
     counts = result.get_counts()
     probs = {bitstring: count / shots for bitstring, count in counts.items()}
