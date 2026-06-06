@@ -71,7 +71,9 @@ def matrix_product_operators(
         matrix_product_state_max_bond_dimension=bond_dim,
     )
 
-    qc_t = transpile(qc_copy, sim)
+    # Transpile to basis gates without passing the backend so Qiskit does not
+    # enforce the simulator's default coupling-map qubit limit (63 qubits).
+    qc_t = transpile(qc_copy, basis_gates=["cx", "u", "measure", "reset"], optimization_level=0)
     result = sim.run(qc_t, shots=shots).result()
     counts = result.get_counts()
 
