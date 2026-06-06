@@ -13,13 +13,14 @@ from quantum_hack import (
     matrix_product_operators,
     save_circuit_drawing,
     snap_rotations_to_pi_over_4,
-    statevector_simulation,
-    strip,
     transpile_to_basis,
+    statevector_simulation,
+    weighted_majority_bitstring,
+    strip,
 )
 
 # The challenge to run. The QASM file and drawing directory are detected from this.
-TASK = "challenge-8_1"
+TASK = "challenge-64_26"
 
 # Anchor to this file's directory so the script runs from any working directory.
 HERE = Path(__file__).resolve().parent
@@ -38,10 +39,10 @@ def main() -> None:
     print(f"Circuit: {QASM_PATH}")
     print("Stats:", circuit_stats(qc))
 
-    bitstring, prob = statevector_simulation(qc)
-    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
-    bitstring, prob = matrix_product_operators(qc)
-    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = statevector_simulation(qc)
+    # print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = matrix_product_operators(qc)
+    # print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     path = save_circuit_drawing(
         qc, f"{TASK}_before", out_dir=drawings_dir, timestamp=False
@@ -52,10 +53,10 @@ def main() -> None:
 
     print("\nStats after stripping Rz and Cx from start:", circuit_stats(clean_qc))
 
-    bitstring, prob = statevector_simulation(clean_qc)
-    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
-    bitstring, prob = matrix_product_operators(clean_qc)
-    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = statevector_simulation(clean_qc,top_n=2,verbose=True)
+    # print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = matrix_product_operators(clean_qc,top_n=2, verbose=True)
+    # print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     path = save_circuit_drawing(
         clean_qc, f"{TASK}_clean", out_dir=drawings_dir, timestamp=False
@@ -71,19 +72,22 @@ def main() -> None:
 
     print("\nStats after snapping and transpilation:", circuit_stats(snapped_qc))
 
-    bitstring, prob = statevector_simulation(snapped_qc)
-    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
-    bitstring, prob = matrix_product_operators(snapped_qc)
-    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = statevector_simulation(snapped_qc)
+    # print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    # bitstring, prob = matrix_product_operators(snapped_qc)
+    # print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     final_qc = strip(snapped_qc)
 
     print("\nStats after final stripping:", circuit_stats(final_qc))
 
-    bitstring, prob = statevector_simulation(final_qc)
-    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
-    bitstring, prob = matrix_product_operators(final_qc)
-    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+    # result_list = statevector_simulation(final_qc,top_n=10, verbose=True)
+    # print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    result_list = matrix_product_operators(final_qc,top_n=10, verbose=True)
+    bitstring = weighted_majority_bitstring(result_list)
+    print("weighted bitstring majority:")
+    print(bitstring)
+    # print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     path = save_circuit_drawing(
         final_qc, f"{TASK}_after", out_dir=drawings_dir, timestamp=False

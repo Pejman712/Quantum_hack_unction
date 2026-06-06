@@ -17,7 +17,7 @@ from quantum_hack.viz import (
     save_counts_histogram,
     save_cx_drawing,
 )
-
+from quantum_hack.majority_bitstring import weighted_majority_bitstring
 __all__ = [
     "statevector_simulation",
     "matrix_product_operators",
@@ -38,4 +38,5 @@ __all__ = [
     "iter_challenges",
     "verify_equivalence",
     "circuits_equivalent",
+    "weighted_majority_bitstring",
 ]
