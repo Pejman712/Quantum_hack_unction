@@ -15,7 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 # Tensor-network amplitude/marginal backend for large circuits. GPU Aer on LUMI comes from the
 # CSC Qiskit container (qiskit-aer-gpu-rocm), not from PyPI, so it is not listed here.
-tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3", "torch>=2.0"]
+tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3"]
 
 [project.scripts]
 quantum-hack = "quantum_hack.cli:main"
