@@ -16,6 +16,7 @@ same sampling — never an exact statevector. The guiding rules, since the porta
 
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
+from functools import partial
 from pathlib import Path
 
 from qiskit import QuantumCircuit
@@ -132,7 +133,13 @@ def solve_peak(
     have_quimb = quimb_available()
     # The peak is found via MPS sampling and the marginal vote; the only amplitude oracle (for
     # refinement / local-max verification) is the tensor network, when quimb is available.
-    oracle: Oracle | None = tn_probability if have_quimb else None
+    # On GPU, bind device='GPU' so every oracle call contracts on CUDA via PyTorch.
+    if have_quimb:
+        oracle: Oracle | None = (
+            partial(tn_probability, device=device) if gpu_available else tn_probability
+        )
+    else:
+        oracle = None
 
     methods_for: dict[str, set[str]] = defaultdict(set)
     prob_of: dict[str, float] = {}
