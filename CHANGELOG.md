@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `challenges` — `load_circuit`, `find_challenge` (locate a challenge's QASM file by name
     across difficulty folders), and `iter_challenges` to load and batch over the
     `qasm_data/` set by difficulty.
+  - `results` — read recorded submissions from `results/*_bitstrings.csv` and judge a
+    challenge: `load_results` parses every row into `SubmissionRecord`s; `challenge_status`
+    aggregates all submissions for a challenge into a `ChallengeStatus` (`worked` verdict
+    plus a one-line suggestion), collecting **every** failed bitstring so none are retried;
+    `is_known_failure` checks whether a candidate bitstring was already submitted and
+    rejected.
 - **`quantum-hack` CLI** — render a circuit plus its transpiled and optimized variants to
   `circuit_drawings/` (`--out-dir`, `--no-timestamp`).
 - **`main.py`** — a scratch single-circuit experiment script.
@@ -45,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `matrix_product_operators` no longer fails on circuits wider than the
+  `AerSimulator`'s memory-based default qubit ceiling (e.g. 64-qubit circuits hit
+  a `CircuitTooWideForTarget` at the 63-qubit limit). Transpilation now targets the
+  simulator's supported standard gates rather than the backend target, so the MPS
+  method's true width capacity is used.
 - `strip_rz_and_cx_from_start` no longer drops RZ/CX gates on a qubit that an
   earlier CX took off `|0>` (as the target of an active control) before its own
   first RX. Those gates carry observable phase, so the strip is now
