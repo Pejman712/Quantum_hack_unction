@@ -13,12 +13,13 @@ from quantum_hack import (
     load_circuit,
     matrix_product_operators,
     snap_rotations_to_pi_over_4,
-    strip,
     transpile_to_basis,
+    weighted_majority_bitstring,
+    strip,
 )
 
 # The challenge to run. The QASM file and drawing directory are detected from this.
-TASK = "challenge-56_24"
+TASK = "challenge-64_26"
 
 # Anchor to this file's directory so the script runs from any working directory.
 HERE = Path(__file__).resolve().parent
@@ -62,8 +63,10 @@ def main() -> None:
 
     print("\nStats after final stripping:", circuit_stats(final_qc))
 
-    bitstring, prob = matrix_product_operators(final_qc)
-    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+    result_list = matrix_product_operators(final_qc, top_n=10, verbose=True)
+    bitstring = weighted_majority_bitstring(result_list)
+    print("weighted bitstring majority:")
+    print(bitstring)
 
 
 if __name__ == "__main__":

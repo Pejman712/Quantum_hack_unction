@@ -53,7 +53,7 @@ from quantum_hack.viz import (
     save_counts_histogram,
     save_cx_drawing,
 )
-
+from quantum_hack.majority_bitstring import weighted_majority_bitstring
 __all__ = [
     # simulation
     "statevector_simulation",
@@ -111,4 +111,5 @@ __all__ = [
     "save_cx_drawing",
     "cx_only_circuit",
     "save_counts_histogram",
+    "weighted_majority_bitstring",
 ]
