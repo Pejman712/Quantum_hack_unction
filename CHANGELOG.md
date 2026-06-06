@@ -34,7 +34,9 @@ Add majority bit string function to get answer out of low probability string.
   - `batch` — `run_batch`/`solve_job` solve every challenge (or one `--challenge`, a tier, or a
     SLURM `--shard`) with per-circuit JSON checkpoints (resume- and array-safe) and a per-circuit
     `--time-budget` that runs each solve in a subprocess and hard-kills it on overrun, recording a
-    timeout (not cached) so it is retried later. `write_results_csvs` appends `pending` candidate
+    timeout (not cached) so it is retried later. An opt-in `--optimize` flag (off by default) runs
+    the peak-preserving `optimize_circuit` pipeline (strip → snap → transpile) on each circuit
+    before solving and records the applied steps in the result notes. `write_results_csvs` appends `pending` candidate
     rows to `results/<difficulty>_bitstrings.csv` without disturbing human `success`/`failed` marks;
     `compare_cache_to_results`/`failed_challenges` cross-check the cached answers against those CSVs
     (match / mismatch / known-failure / unconfirmed).
