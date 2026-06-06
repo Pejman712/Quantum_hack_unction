@@ -1,5 +1,35 @@
 
 def weighted_majority_bitstring(results: list[tuple[str, float]]) -> str:
+    """
+    Compute the weighted majority bitstring from a list of bitstrings and probabilities.
+
+    For each bit position, the function sums the probabilities of all bitstrings
+    that have a `1` in that position and compares it with the summed probabilities
+    of all bitstrings that have a `0` in the same position. The output bit is `1`
+    if the total probability for `1` is greater than or equal to the total
+    probability for `0`; otherwise, the output bit is `0`.
+
+    If the input list is empty, the function returns an empty string.
+
+    Args:
+        results: A list of tuples where each tuple contains a bitstring and its
+            associated probability.
+
+    Returns:
+        A bitstring formed by choosing the weighted majority bit at each position.
+
+    Raises:
+        ValueError: If not all bitstrings have the same length.
+
+    Example:
+        >>> weighted_majority_bitstring([
+        ...     ("111", 0.4),
+        ...     ("101", 0.3),
+        ...     ("000", 0.3),
+        ... ])
+        '101'
+    """
+
     if not results:
         return ""
 

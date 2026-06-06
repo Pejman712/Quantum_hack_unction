@@ -13,9 +13,9 @@ from quantum_hack import (
     load_circuit,
     matrix_product_operators,
     snap_rotations_to_pi_over_4,
+    strip,
     transpile_to_basis,
     weighted_majority_bitstring,
-    strip,
 )
 
 # The challenge to run. The QASM file and drawing directory are detected from this.

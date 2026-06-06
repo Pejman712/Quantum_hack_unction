@@ -11,6 +11,7 @@ from quantum_hack.batch import (
     write_results_csvs,
 )
 from quantum_hack.challenges import find_challenge, iter_challenges, load_circuit
+from quantum_hack.majority_bitstring import weighted_majority_bitstring
 from quantum_hack.metrics import circuit_stats, compare_circuits
 from quantum_hack.optimize import OptimizeResult, cost, optimize_circuit
 from quantum_hack.peak import (
@@ -53,7 +54,7 @@ from quantum_hack.viz import (
     save_counts_histogram,
     save_cx_drawing,
 )
-from quantum_hack.majority_bitstring import weighted_majority_bitstring
+
 __all__ = [
     # simulation
     "statevector_simulation",
