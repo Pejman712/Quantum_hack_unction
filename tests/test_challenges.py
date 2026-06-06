@@ -1,7 +1,7 @@
 import pytest
 from qiskit import QuantumCircuit
 
-from quantum_hack.challenges import iter_challenges, load_circuit
+from quantum_hack.challenges import find_challenge, iter_challenges, load_circuit
 
 QASM_X = """OPENQASM 2.0;
 include "qelib1.inc";
@@ -38,6 +38,30 @@ def _make_data_dir(tmp_path):
     _write(tmp_path / "very_easy" / "a.qasm", QASM_X)
     _write(tmp_path / "easy" / "b.qasm", QASM_ID)
     return tmp_path
+
+
+def test_find_challenge_locates_file_across_difficulties(tmp_path):
+    data_dir = _make_data_dir(tmp_path)
+    assert find_challenge("b", data_dir=data_dir) == data_dir / "easy" / "b.qasm"
+
+
+def test_find_challenge_missing_raises(tmp_path):
+    data_dir = _make_data_dir(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        find_challenge("nope", data_dir=data_dir)
+
+
+def test_find_challenge_ambiguous_raises(tmp_path):
+    _write(tmp_path / "very_easy" / "dup.qasm", QASM_X)
+    _write(tmp_path / "easy" / "dup.qasm", QASM_X)
+    with pytest.raises(FileNotFoundError, match="Multiple"):
+        find_challenge("dup", data_dir=tmp_path)
+
+
+def test_find_challenge_exact_stem_not_prefix(tmp_path):
+    _write(tmp_path / "very_easy" / "c-1.qasm", QASM_X)
+    _write(tmp_path / "very_easy" / "c-11.qasm", QASM_ID)
+    assert find_challenge("c-1", data_dir=tmp_path) == tmp_path / "very_easy" / "c-1.qasm"
 
 
 def test_iter_challenges_filters_by_difficulty(tmp_path):

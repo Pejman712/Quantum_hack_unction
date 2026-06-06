@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,17 @@ def _deterministic_circuit() -> QuantumCircuit:
     """
     qc = QuantumCircuit(3)
     qc.x(0)
+    return qc
+
+
+def _skewed_circuit() -> QuantumCircuit:
+    """1-qubit circuit with distinct outcome probabilities P("0")=0.75, P("1")=0.25.
+
+    Returns:
+        QuantumCircuit: A 1-qubit RY(pi/3) circuit with unequal, tie-free probabilities.
+    """
+    qc = QuantumCircuit(1)
+    qc.ry(math.pi / 3, 0)  # P(0)=cos^2(pi/6)=0.75, P(1)=sin^2(pi/6)=0.25
     return qc
 
 
@@ -51,6 +63,81 @@ def test_statevector_and_matrix_product_operators_agree_on_deterministic_circuit
     sv_peak = statevector_simulation(_deterministic_circuit())
     mpo_peak = matrix_product_operators(_deterministic_circuit(), shots=512)
     assert sv_peak == mpo_peak
+
+
+# --- top_n: return a ranked list of (bitstring, probability) pairs ---
+
+
+def test_statevector_top_n_returns_ranking_sorted_descending():
+    ranking = statevector_simulation(_skewed_circuit(), top_n=2)
+    assert [b for b, _ in ranking] == ["0", "1"]
+    assert ranking[0][1] == pytest.approx(0.75)
+    assert ranking[1][1] == pytest.approx(0.25)
+
+
+def test_statevector_top_n_one_returns_single_element_list_not_tuple():
+    ranking = statevector_simulation(_skewed_circuit(), top_n=1)
+    assert ranking == [("0", pytest.approx(0.75))]
+
+
+def test_statevector_top_n_larger_than_outcomes_returns_all_available():
+    # The deterministic circuit has a single nonzero outcome; asking for 5 yields 1.
+    ranking = statevector_simulation(_deterministic_circuit(), top_n=5)
+    assert ranking == [("001", pytest.approx(1.0))]
+
+
+@pytest.mark.parametrize("bad", [0, -1])
+def test_statevector_top_n_must_be_positive(bad):
+    with pytest.raises(ValueError, match="positive integer"):
+        statevector_simulation(_skewed_circuit(), top_n=bad)
+
+
+def test_matrix_product_operators_top_n_returns_sorted_ranking():
+    ranking = matrix_product_operators(_skewed_circuit(), shots=4096, top_n=2)
+    assert len(ranking) == 2
+    assert ranking[0][0] == "0"  # the more likely outcome ranks first
+    assert ranking[0][1] >= ranking[1][1]
+    assert sum(prob for _, prob in ranking) == pytest.approx(1.0)
+
+
+def test_matrix_product_operators_top_n_one_returns_single_element_list():
+    ranking = matrix_product_operators(_deterministic_circuit(), shots=256, top_n=1)
+    assert ranking == [("001", pytest.approx(1.0))]
+
+
+def test_matrix_product_operators_top_n_must_be_positive():
+    with pytest.raises(ValueError, match="positive integer"):
+        matrix_product_operators(_deterministic_circuit(), shots=64, top_n=0)
+
+
+# --- verbose: print the result(s) to stdout ---
+
+
+def test_statevector_verbose_prints_peak(capsys):
+    statevector_simulation(_deterministic_circuit(), verbose=True)
+    out = capsys.readouterr().out
+    assert "Most likely bitstring:" in out
+    assert "001" in out
+
+
+def test_statevector_verbose_prints_ranking(capsys):
+    statevector_simulation(_skewed_circuit(), verbose=True, top_n=2)
+    out = capsys.readouterr().out
+    assert "1. 0" in out  # rank 1 is bitstring "0"
+    assert "2. 1" in out  # rank 2 is bitstring "1"
+
+
+def test_matrix_product_operators_verbose_prints_peak(capsys):
+    matrix_product_operators(_deterministic_circuit(), shots=256, verbose=True)
+    out = capsys.readouterr().out
+    assert "Estimated peak bitstring:" in out
+    assert "001" in out
+
+
+def test_matrix_product_operators_verbose_prints_ranking(capsys):
+    matrix_product_operators(_deterministic_circuit(), shots=256, verbose=True, top_n=1)
+    out = capsys.readouterr().out
+    assert "1. 001" in out
 
 
 @pytest.mark.skipif(not SAMPLE_QASM.exists(), reason="sample QASM not present")

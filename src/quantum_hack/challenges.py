@@ -26,6 +26,32 @@ def load_circuit(path: Path | str) -> QuantumCircuit:
     return QuantumCircuit.from_qasm_file(str(path))
 
 
+def find_challenge(task: str, *, data_dir: Path | str = DEFAULT_DATA_DIR) -> Path:
+    """Locate the QASM file for a task within the challenge data tree.
+
+    Searches ``data_dir`` recursively so the difficulty subfolder (e.g.
+    ``very_easy``) does not need to be known up front.
+
+    Args:
+        task (str): The challenge name without extension (e.g. ``"challenge-8_1"``).
+        data_dir (Path | str): Root directory holding the challenge QASM files.
+
+    Returns:
+        Path: Absolute-or-relative path to the matching ``<task>.qasm`` file.
+
+    Raises:
+        FileNotFoundError: If no file, or more than one file, matches ``task``.
+    """
+    data_dir = Path(data_dir)
+    matches = sorted(data_dir.rglob(f"{task}.qasm"))
+    if not matches:
+        raise FileNotFoundError(f"No QASM file named {task!r}.qasm under {data_dir}")
+    if len(matches) > 1:
+        joined = ", ".join(str(m) for m in matches)
+        raise FileNotFoundError(f"Multiple QASM files match {task!r}: {joined}")
+    return matches[0]
+
+
 def iter_challenges(
     difficulty: str | None = None,
     func: Callable[[QuantumCircuit], object] | None = matrix_product_operators,

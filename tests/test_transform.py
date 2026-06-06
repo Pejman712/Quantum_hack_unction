@@ -2,6 +2,7 @@ import math
 
 import pytest
 from qiskit import QuantumCircuit
+from qiskit.circuit import Parameter
 
 from quantum_hack.transform import (
     DEFAULT_BASIS_GATES,
@@ -86,6 +87,18 @@ def test_rz_never_snaps_to_zero():
     assert _angles(out, "rz") == [0.002, 2 * math.pi + 0.002]  # both unchanged
 
 
+def test_rz_snaps_to_zero_when_opted_in():
+    # With snap_rz_to_zero=True, near-zero RZ angles snap to 0 (wrapped into (-pi, pi]).
+    qc = QuantumCircuit(2)
+    qc.rz(0.002, 0)  # within tolerance of 0
+    qc.rz(2 * math.pi + 0.002, 1)  # within tolerance of 2*pi, which wraps to 0
+
+    out = snap_rotations_to_pi_over_4(qc, snap_rz_to_zero=True)
+
+    assert _angles(out, "rz")[0] == pytest.approx(0.0, abs=1e-12)
+    assert _angles(out, "rz")[1] == pytest.approx(0.0, abs=1e-12)
+
+
 def test_leaves_angle_far_from_grid_untouched():
     qc = QuantumCircuit(1)
     qc.rx(PI_OVER_4 / 2, 0)  # exactly halfway between 0 and pi/4
@@ -149,6 +162,18 @@ def test_snapped_result_wrapped_into_minus_pi_pi():
     assert _angles(out, "rx")[0] == pytest.approx(0.0, abs=1e-12)
     assert _angles(out, "rz")[0] == pytest.approx(-math.pi / 2)
     assert _angles(out, "rz")[1] == pytest.approx(math.pi)
+
+
+def test_unbound_parameter_angle_left_untouched():
+    # A symbolic (unbound) angle can't be cast to float, so snapping must skip it and
+    # leave the gate exactly as-is rather than raising.
+    theta = Parameter("theta")
+    qc = QuantumCircuit(1)
+    qc.rx(theta, 0)
+
+    out = snap_rotations_to_pi_over_4(qc)
+
+    assert out.data[0].operation.params[0] == theta
 
 
 def test_all_snapped_angles_are_within_minus_pi_pi():
