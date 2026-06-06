@@ -74,6 +74,18 @@ def test_snaps_near_zero_to_zero():
     assert _angles(out, "rx")[0] == 0.0
 
 
+def test_rz_never_snaps_to_zero():
+    # An RZ that would snap to 0 (or to a multiple of 2*pi, which wraps to 0) is left
+    # untouched -- zeroing it would discard a real phase. RX still snaps to 0 (above).
+    qc = QuantumCircuit(2)
+    qc.rz(0.002, 0)  # within tolerance of 0
+    qc.rz(2 * math.pi + 0.002, 1)  # within tolerance of 2*pi, which wraps to 0
+
+    out = snap_rotations_to_pi_over_4(qc)
+
+    assert _angles(out, "rz") == [0.002, 2 * math.pi + 0.002]  # both unchanged
+
+
 def test_leaves_angle_far_from_grid_untouched():
     qc = QuantumCircuit(1)
     qc.rx(PI_OVER_4 / 2, 0)  # exactly halfway between 0 and pi/4

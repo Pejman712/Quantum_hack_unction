@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setup.ps1`, a `pre-push` lint+test hook, GitHub Actions CI, and a pull-request template.
 - **Documentation** — `README.md` and `GUIDE.md`.
 
+### Changed
+
+- `snap_rotations_to_pi_over_4` never snaps an RZ to 0 (or to a multiple of 2*pi):
+  zeroing an RZ would discard a real phase, so such an RZ keeps its original angle.
+  RX angles still snap to 0.
+
 ### Fixed
 
 - `strip_rz_and_cx_from_start` no longer drops RZ/CX gates on a qubit that an

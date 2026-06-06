@@ -61,9 +61,12 @@ def snap_rotations_to_pi_over_4(
     For every RZ and RX gate, if its angle is within ``threshold`` of the nearest
     multiple of pi/4 it is replaced by that exact multiple, wrapped into (-pi, pi].
     ``threshold`` is a fraction of the pi/4 grid spacing, so the absolute tolerance
-    is ``threshold * pi/4`` (default ``0.01`` -> 1% of pi/4). Defining it relative to
-    the grid spacing keeps snapping to 0 well-behaved. Because the pi/4 grid repeats
-    every 2*pi, the wrap does not change which multiple is nearest.
+    is ``threshold * pi/4`` (default ``0.01`` -> 1% of pi/4). Because the pi/4 grid
+    repeats every 2*pi, the wrap does not change which multiple is nearest.
+
+    An RZ is never snapped to 0 (a multiple of 2*pi): zeroing it would discard a
+    real, if small, phase, so such an RZ keeps its original angle. RX may still
+    snap to 0.
 
     Gates other than RZ/RX, and any RZ/RX whose angle is a symbolic (unbound)
     parameter, are left untouched. Qubits, clbits, and measurements are preserved.
@@ -85,8 +88,12 @@ def snap_rotations_to_pi_over_4(
             except (TypeError, ValueError):
                 pass  # symbolic / unbound parameter — leave it alone
             else:
-                snapped = round(angle / PI_OVER_4) * PI_OVER_4
-                if abs(angle - snapped) <= tolerance:
+                steps = round(angle / PI_OVER_4)
+                snapped = steps * PI_OVER_4
+                # Never snap an RZ to 0 (steps a multiple of 8 -> a multiple of 2*pi):
+                # zeroing an RZ would discard a real phase. RX may still snap to 0.
+                snaps_rz_to_zero = op.name == "rz" and steps % 8 == 0
+                if abs(angle - snapped) <= tolerance and not snaps_rz_to_zero:
                     op = op.copy()
                     op.params = [_wrap_to_pi(snapped)]
         new_qc.append(op, instruction.qubits, instruction.clbits)

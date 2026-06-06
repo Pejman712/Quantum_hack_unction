@@ -79,7 +79,8 @@ works for all of it.
 - `snap_rotations_to_pi_over_4(qc, threshold=0.01) -> QuantumCircuit` — for every `rz`/`rx`,
   if its angle is within `threshold * (π/4)` of a multiple of π/4, snap it to that exact
   multiple (wrapped into `(-π, π]`). `threshold` is a fraction of the grid spacing, so the
-  default snaps within 1% of π/4. Symbolic/unbound parameters are left alone.
+  default snaps within 1% of π/4. Symbolic/unbound parameters are left alone; an RZ is
+  never snapped to 0 (RX may be), since zeroing an RZ would drop a real phase.
 
 ### `strip` — dropping boundary rotations
 
