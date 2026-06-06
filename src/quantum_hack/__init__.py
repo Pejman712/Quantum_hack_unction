@@ -1,15 +1,5 @@
 """Quantum hackathon toolkit: load QASM circuits, find peak bitstrings, strip gates."""
 
-from quantum_hack.batch import (
-    CacheComparison,
-    CircuitJob,
-    compare_cache_to_results,
-    failed_challenges,
-    list_jobs,
-    run_batch,
-    solve_job,
-    write_results_csvs,
-)
 from quantum_hack.challenges import find_challenge, iter_challenges, load_circuit
 from quantum_hack.majority_bitstring import weighted_majority_bitstring
 from quantum_hack.metrics import circuit_stats, compare_circuits
@@ -75,15 +65,6 @@ __all__ = [
     "z_marginals_from_counts",
     "marginal_bitstring",
     "greedy_refine",
-    # batch
-    "run_batch",
-    "solve_job",
-    "list_jobs",
-    "write_results_csvs",
-    "compare_cache_to_results",
-    "failed_challenges",
-    "CacheComparison",
-    "CircuitJob",
     # optimization
     "optimize_circuit",
     "OptimizeResult",

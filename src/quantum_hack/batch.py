@@ -648,21 +648,34 @@ def main(argv: list[str] | None = None) -> None:
     """
     args = build_parser().parse_args(argv)
 
-    # --gpu implies --device GPU unless the user explicitly overrode it.
+    # --gpu implies --device GPU for Aer unless the user explicitly overrode it.
     device: str = args.device if args.device is not None else ("GPU" if args.gpu else "CPU")
 
-    # Validate GPU availability when requested; fall back to CPU with a clear warning.
-    gpu_available = args.gpu
+    # Probe Aer GPU and quimb/torch GPU independently — they don't depend on each other.
+    gpu_available = False  # controls quimb TN oracle (torch+CUDA)
     if args.gpu:
+        # Aer GPU: only used for MPS/statevector sampling in simulation.py.
         if probe_gpu():
-            print("GPU probe: OK — Aer GPU simulation available.", flush=True)
+            print("Aer GPU:   OK — statevector/MPS sampling will use the GPU.", flush=True)
         else:
             warnings.warn(
-                "GPU probe failed: the installed qiskit-aer wheel is CPU-only. "
-                "Falling back to CPU. Build qiskit-aer from source with CUDA to use the GPU."
+                "Aer GPU not available (CPU-only qiskit-aer wheel); "
+                "MPS sampling will run on CPU. "
+                "Build qiskit-aer from source with CUDA to fix this."
             )
-            gpu_available = False
             device = "CPU"
+
+        # quimb/torch GPU: used for TN amplitude oracle (greedy_refine, local-max checks).
+        # Completely independent of Aer — works even when Aer is CPU-only.
+        from quantum_hack.peak.tensor_network import torch_gpu_available
+        if torch_gpu_available():
+            gpu_available = True
+            print("Torch GPU: OK — TN amplitude oracle will run on CUDA.", flush=True)
+        else:
+            warnings.warn(
+                "torch+CUDA not available; TN amplitude oracle will run on CPU. "
+                "Install PyTorch with CUDA to enable GPU tensor-network contractions."
+            )
 
     # Auto-detect SLURM array shard when --shard was not given explicitly.
     shard = args.shard
