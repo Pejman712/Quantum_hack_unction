@@ -9,16 +9,19 @@ dependencies = [
     "mqt-qcec>=3.0.0",
     "pylatexenc>=2.10",
     "qiskit>=1.2",
-    "qiskit-aer>=0.13.0",
 ]
 
 [project.scripts]
 quantum-hack = "quantum_hack.cli:main"
 
 [project.optional-dependencies]
-# Install with: pip install -e ".[gpu]"
-# Requires CUDA 11.x/12.x and NVIDIA drivers.  qiskit-aer-gpu replaces
-# qiskit-aer and ships the cuStateVec / GPU-MPS backends.
+# CPU-only install: pip install -e ".[cpu]"
+cpu = [
+    "qiskit-aer>=0.13.0",
+]
+# GPU cluster install: pip install -e ".[gpu]"
+# Requires CUDA 12.x and NVIDIA drivers. qiskit-aer-gpu replaces qiskit-aer
+# and ships cuStateVec + GPU-MPS backends (via cuTensorNet).
 gpu = [
     "qiskit-aer-gpu>=0.13.0",
     "mpi4py>=3.1.0",
