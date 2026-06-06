@@ -15,7 +15,29 @@ Add majority bit string function to get answer out of low probability string.
   - `simulation` — `statevector_simulation` (exact peak bitstring) and
     `matrix_product_operators` (approximate, shot-based MPS estimate for larger circuits).
     Both accept `top_n` to return the N most likely `(bitstring, probability)` pairs
-    instead of just the peak, and `verbose` to print the result(s).
+    instead of just the peak, and `verbose` to print the result(s). Both also accept
+    `device="GPU"` to run on Aer's GPU (LUMI `standard-g` via the CSC container). New
+    `mps_sample_counts` exposes the raw MPS sample counts (so the marginal attack can reuse one
+    sampling run), and `statevector_probability` returns the exact probability of a given bitstring.
+  - `peak` — an MPS-based, confidence-gated peak-bitstring solver that never uses an exact
+    statevector: `profile_circuit`/`select_method` (MPS sampling → marginal vote → greedy refine →
+    optional tensor-network amplitude oracle), `exact_z_marginals`/`z_marginals_from_counts`/
+    `marginal_bitstring` (the marginal "Z-expectation" attack, which recovers peaks that
+    argmax-over-samples misses), `greedy_refine` (steepest-ascent bit-flip hill-climb on an
+    amplitude oracle), `tensor_network` (lazy `quimb`/`cotengra` exact-amplitude backend for large
+    circuits), and `solve_peak` returning a `PeakResult` with a `score_confidence` composite
+    (magnitude + single-bit-flip local-max + multi-method consensus). It consults
+    `is_known_failure` so a rejected bitstring is never re-proposed.
+  - `optimize` — `optimize_circuit`, a light greedy-with-rollback reducer (`strip` → angle-snap →
+    `transpile` opt-3) that keeps a step only if it does not grow a weighted `cost` and preserves
+    the peak bitstring; reports a `by_construction`/`peak_verified` outcome guarantee.
+  - `batch` — `run_batch`/`solve_job` solve every challenge (or one `--challenge`, a tier, or a
+    SLURM `--shard`) with per-circuit JSON checkpoints (resume- and array-safe) and a per-circuit
+    `--time-budget` that runs each solve in a subprocess and hard-kills it on overrun, recording a
+    timeout (not cached) so it is retried later. `write_results_csvs` appends `pending` candidate
+    rows to `results/<difficulty>_bitstrings.csv` without disturbing human `success`/`failed` marks;
+    `compare_cache_to_results`/`failed_challenges` cross-check the cached answers against those CSVs
+    (match / mismatch / known-failure / unconfirmed).
   - `strip` — `strip_rz_and_cx_from_start`, `strip_rz_from_start`, and `strip_rz_from_end`
     to drop leading/trailing rotation gates per qubit, plus `strip` to apply the leading
     RZ/CX and trailing RZ passes together.
@@ -38,10 +60,17 @@ Add majority bit string function to get answer out of low probability string.
     rejected.
 - **`quantum-hack` CLI** — render a circuit plus its transpiled and optimized variants to
   `circuit_drawings/` (`--out-dir`, `--no-timestamp`).
+- **`quantum-hack-batch` CLI** — batch-solve from the command line with `--difficulty`,
+  `--challenge`, `--shard`, `--gpu`/`--device`, `--shots`, `--bond-dim`, `--time-budget`,
+  `--write-csv`, `--aggregate-only`, and `--compare`.
+- **`hpc/` SLURM scripts for LUMI** — `lumi_batch.slurm` (GPU job array on `small-g` via CSC's
+  Qiskit container, with overridable `DIFFICULTY`/`SHOTS`/`BOND_DIM`/`TIME_BUDGET`) and
+  `lumi_aggregate.slurm` (write the result CSVs from the cache).
 - **`main.py`** — a scratch single-circuit experiment script.
 - **QASM challenge dataset** under `qasm_data/` — 49 circuits across five difficulty tiers.
-- **Tooling** — `pyproject.toml` (uv-managed, Python 3.12+), pinned `uv.lock`, `Makefile`,
-  `setup.ps1`, a `pre-push` lint+test hook, GitHub Actions CI, and a pull-request template.
+- **Tooling** — `pyproject.toml` (uv-managed, Python 3.12+) with an optional `tn` extra
+  (`quimb`/`cotengra`) for the tensor-network backend, pinned `uv.lock`, `Makefile`, `setup.ps1`,
+  a `pre-push` lint+test hook, GitHub Actions CI, and a pull-request template.
 - **Documentation** — `README.md` and `GUIDE.md`.
 
 ### Changed
@@ -53,6 +82,10 @@ Add majority bit string function to get answer out of low probability string.
 
 ### Fixed
 
+- `statevector_simulation` now reads the raw probability array (numpy `argpartition`) instead of
+  `Statevector.probabilities_dict()`, which materialised a string label for every one of the
+  `2**n` basis states (~4 GiB at 24 qubits) and effectively limited exact simulation to tiny
+  circuits.
 - `matrix_product_operators` no longer fails on circuits wider than the
   `AerSimulator`'s memory-based default qubit ceiling (e.g. 64-qubit circuits hit
   a `CircuitTooWideForTarget` at the 63-qubit limit). Transpilation now targets the
