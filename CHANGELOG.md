@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `strip_rz_and_cx_from_start` no longer drops RZ/CX gates on a qubit that an
+  earlier CX took off `|0>` (as the target of an active control) before its own
+  first RX. Those gates carry observable phase, so the strip is now
+  equivalence-preserving up to global phase.
 - Aligned the test suite with the current API: the simulators return
   `(bitstring, probability)` tuples, and `circuit_stats` reports metrics in the
   normalized `rz`/`rx`/`cx` basis.

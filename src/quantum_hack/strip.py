@@ -17,23 +17,6 @@ def _qubit_indices(qc: QuantumCircuit, instruction: CircuitInstruction) -> list[
     return [qc.find_bit(q).index for q in instruction.qubits]
 
 
-def _first_rx_per_qubit(qc: QuantumCircuit) -> dict[int, int]:
-    """Map each qubit to the data index of its first RX gate.
-
-    Args:
-        qc (QuantumCircuit): Circuit to scan.
-
-    Returns:
-        dict[int, int]: Mapping of qubit index to the data index of its first RX gate.
-    """
-    first: dict[int, int] = {}
-    for i, instruction in enumerate(qc.data):
-        if instruction.operation.name == "rx":
-            for q in _qubit_indices(qc, instruction):
-                first.setdefault(q, i)
-    return first
-
-
 def _last_rx_or_cx_per_qubit(qc: QuantumCircuit) -> dict[int, int]:
     """Map each qubit to the data index of its last RX or CX gate.
 
@@ -54,29 +37,35 @@ def _last_rx_or_cx_per_qubit(qc: QuantumCircuit) -> dict[int, int]:
 def strip_rz_and_cx_from_start(qc: QuantumCircuit) -> QuantumCircuit:
     """Return a copy of ``qc`` with leading RZ/CX gates removed, per qubit.
 
-    On each qubit, an RZ/CX gate that occurs before that qubit's first RX gate is
-    considered "leading" and dropped. A two-qubit CX is dropped only when it
-    precedes the first RX on *both* of its qubits; otherwise it lies after the
-    boundary on at least one wire and is kept. If a qubit never sees an RX, every
-    RZ/CX touching only that qubit is treated as leading.
+    A gate is "leading" while every qubit it touches is still ``|0>`` (up to global
+    phase): an RZ on such a qubit is only a global phase, and a CX whose control is
+    still ``|0>`` is the identity, so both are unobservable and dropped. A qubit
+    leaves ``|0>`` either at its first RX *or* when it becomes the target of a kept
+    CX (one whose control is already active), which entangles it; RZ/CX after that
+    point are kept. A single forward pass tracks which qubits are still ``|0>``.
 
     Args:
         qc (QuantumCircuit): Circuit to strip.
 
     Returns:
-        QuantumCircuit: A new circuit with leading RZ/CX gates removed.
+        QuantumCircuit: A new circuit with the leading RZ/CX gates removed, equivalent
+        to ``qc`` up to global phase.
     """
-    first_rx = _first_rx_per_qubit(qc)
-    after_end = len(qc.data)  # sentinel "first RX index" for qubits with no RX
+    active: set[int] = set()  # qubits no longer guaranteed to be |0> (up to phase)
     new_qc = QuantumCircuit(qc.num_qubits)
-    for i, instruction in enumerate(qc.data):
+    for instruction in qc.data:
         op = instruction.operation
         indices = _qubit_indices(qc, instruction)
-        if op.name == "rz" and i < first_rx.get(indices[0], after_end):
+        # On a still-|0> qubit, rz is a global phase and a cx (control |0>) is identity.
+        if op.name == "rz" and indices[0] not in active:
             continue
-        if op.name == "cx" and all(i < first_rx.get(q, after_end) for q in indices):
+        if op.name == "cx" and indices[0] not in active:
             continue
         new_qc.append(op, indices)
+        if op.name == "rx":
+            active.add(indices[0])  # rx takes its qubit off |0>
+        elif op.name == "cx":
+            active.add(indices[1])  # kept cx (active control) entangles its target
     return new_qc
 
 

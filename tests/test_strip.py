@@ -46,6 +46,33 @@ def test_start_drops_everything_when_qubit_never_sees_rx():
     assert _gate_names(stripped) == []
 
 
+def test_start_keeps_rz_on_qubit_entangled_before_its_first_rx():
+    # q1 is taken off |0> by cx(q0 -> q1) once q0 is active, before q1's own rx, so
+    # the rz on q1 is now a real relative phase (not a global phase) and must be kept.
+    qc = QuantumCircuit(2)
+    qc.rx(0.5, 0)  # q0 active
+    qc.cx(0, 1)  # kept: active control entangles q1
+    qc.rz(0.3, 1)  # must be kept: q1 is no longer |0>
+    qc.rx(0.5, 1)  # q1's first rx, later
+
+    stripped = strip_rz_and_cx_from_start(qc)
+
+    assert _gate_names(stripped) == ["rx", "cx", "rz", "rx"]
+
+
+def test_start_keeps_cx_whose_control_was_entangled_before_its_rx():
+    # q1 is entangled by cx(q0 -> q1) before q1's rx; a later cx(q1 -> q2) must be kept
+    # because q1 is already active, even though neither q1 nor q2 has seen an rx yet.
+    qc = QuantumCircuit(3)
+    qc.rx(0.5, 0)
+    qc.cx(0, 1)  # entangles q1
+    qc.cx(1, 2)  # must be kept: q1 (control) is active
+
+    stripped = strip_rz_and_cx_from_start(qc)
+
+    assert _gate_names(stripped) == ["rx", "cx", "cx"]
+
+
 # --- strip_rz_from_end: drop trailing RZ after each qubit's last RX or CX ---
 
 
