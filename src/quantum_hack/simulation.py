@@ -8,12 +8,55 @@ Two strategies are provided:
   (MPS) simulator. Scales to many more qubits at the cost of being approximate.
 """
 
+from typing import overload
+
 from qiskit import QuantumCircuit, transpile
 from qiskit.quantum_info import Statevector
 from qiskit_aer import AerSimulator
 
 
-def statevector_simulation(qc: QuantumCircuit, verbose: bool = False) -> tuple[str, float]:
+def _ranked(probs: dict[str, float], top_n: int) -> list[tuple[str, float]]:
+    """Return the ``top_n`` highest-probability ``(bitstring, probability)`` pairs.
+
+    Args:
+        probs (dict[str, float]): Mapping of bitstring to probability.
+        top_n (int): Number of pairs to return; must be a positive integer.
+
+    Returns:
+        list[tuple[str, float]]: Up to ``top_n`` pairs sorted by descending probability.
+
+    Raises:
+        ValueError: If ``top_n`` is less than 1.
+    """
+    if top_n < 1:
+        raise ValueError(f"top_n must be a positive integer, got {top_n}")
+    return sorted(probs.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+
+
+def _print_ranking(ranking: list[tuple[str, float]]) -> None:
+    """Print a ranked list of ``(bitstring, probability)`` pairs, highest first.
+
+    Args:
+        ranking (list[tuple[str, float]]): Bitstring/probability pairs to print.
+
+    Returns:
+        None
+    """
+    for rank, (bitstring, prob) in enumerate(ranking, start=1):
+        print(f"{rank}. {bitstring}  {prob:.4f}")
+
+
+@overload
+def statevector_simulation(
+    qc: QuantumCircuit, verbose: bool = ..., *, top_n: None = ...
+) -> tuple[str, float]: ...
+@overload
+def statevector_simulation(
+    qc: QuantumCircuit, verbose: bool = ..., *, top_n: int
+) -> list[tuple[str, float]]: ...
+def statevector_simulation(
+    qc: QuantumCircuit, verbose: bool = False, *, top_n: int | None = None
+) -> tuple[str, float] | list[tuple[str, float]]:
     """Return the most likely measurement bitstring via exact statevector simulation.
 
     Measurements are removed first because :class:`~qiskit.quantum_info.Statevector`
@@ -22,10 +65,17 @@ def statevector_simulation(qc: QuantumCircuit, verbose: bool = False) -> tuple[s
 
     Args:
         qc (QuantumCircuit): Circuit to simulate.
-        verbose (bool): If ``True``, print the peak bitstring and probability.
+        verbose (bool): If ``True``, print the result(s).
+        top_n (int | None): If ``None`` (default), return only the single peak. If a
+            positive integer, return the ``top_n`` most likely bitstrings instead.
 
     Returns:
-        tuple[str, float]: The peak bitstring and its exact probability.
+        tuple[str, float] | list[tuple[str, float]]: When ``top_n`` is ``None``, the
+        peak bitstring and its exact probability. When ``top_n`` is an int, a list of
+        up to ``top_n`` ``(bitstring, probability)`` pairs sorted by descending probability.
+
+    Raises:
+        ValueError: If ``top_n`` is given and is less than 1.
     """
     qc_no_meas = qc.remove_final_measurements(inplace=False)
     assert qc_no_meas is not None  # inplace=False always returns a new circuit
@@ -33,6 +83,13 @@ def statevector_simulation(qc: QuantumCircuit, verbose: bool = False) -> tuple[s
     sv = Statevector.from_instruction(qc_no_meas)
 
     probs = sv.probabilities_dict()  # bitstring -> probability
+
+    if top_n is not None:
+        ranking = _ranked(probs, top_n)
+        if verbose:
+            _print_ranking(ranking)
+        return ranking
+
     peak_bitstring = max(probs, key=lambda b: probs[b])
     peak_prob = probs[peak_bitstring]
 
@@ -42,12 +99,32 @@ def statevector_simulation(qc: QuantumCircuit, verbose: bool = False) -> tuple[s
     return peak_bitstring, peak_prob
 
 
+@overload
+def matrix_product_operators(
+    qc: QuantumCircuit,
+    shots: int = ...,
+    bond_dim: int = ...,
+    verbose: bool = ...,
+    *,
+    top_n: None = ...,
+) -> tuple[str, float]: ...
+@overload
+def matrix_product_operators(
+    qc: QuantumCircuit,
+    shots: int = ...,
+    bond_dim: int = ...,
+    verbose: bool = ...,
+    *,
+    top_n: int,
+) -> list[tuple[str, float]]: ...
 def matrix_product_operators(
     qc: QuantumCircuit,
     shots: int = 4096,
     bond_dim: int = 64,
     verbose: bool = False,
-) -> tuple[str, float]:
+    *,
+    top_n: int | None = None,
+) -> tuple[str, float] | list[tuple[str, float]]:
     """Estimate the most likely bitstring via shot-based MPS sampling.
 
     The input circuit is left untouched: any final measurements are removed and a
@@ -57,10 +134,18 @@ def matrix_product_operators(
         qc (QuantumCircuit): Circuit to sample.
         shots (int): Number of measurement shots to draw.
         bond_dim (int): Maximum MPS bond dimension.
-        verbose (bool): If ``True``, print the estimated peak bitstring and probability.
+        verbose (bool): If ``True``, print the result(s).
+        top_n (int | None): If ``None`` (default), return only the single peak. If a
+            positive integer, return the ``top_n`` most sampled bitstrings instead.
 
     Returns:
-        tuple[str, float]: The estimated peak bitstring and its estimated probability.
+        tuple[str, float] | list[tuple[str, float]]: When ``top_n`` is ``None``, the
+        estimated peak bitstring and its estimated probability. When ``top_n`` is an
+        int, a list of up to ``top_n`` ``(bitstring, probability)`` pairs sorted by
+        descending estimated probability.
+
+    Raises:
+        ValueError: If ``top_n`` is given and is less than 1.
     """
     qc_copy = qc.remove_final_measurements(inplace=False)
     assert qc_copy is not None  # inplace=False always returns a new circuit
@@ -74,10 +159,16 @@ def matrix_product_operators(
     qc_t = transpile(qc_copy, sim)
     result = sim.run(qc_t, shots=shots).result()
     counts = result.get_counts()
+    probs = {bitstring: count / shots for bitstring, count in counts.items()}
 
-    peak_bitstring = max(counts, key=counts.get)
-    peak_count = counts[peak_bitstring]
-    peak_prob_est = peak_count / shots
+    if top_n is not None:
+        ranking = _ranked(probs, top_n)
+        if verbose:
+            _print_ranking(ranking)
+        return ranking
+
+    peak_bitstring = max(probs, key=lambda b: probs[b])
+    peak_prob_est = probs[peak_bitstring]
 
     if verbose:
         print("Estimated peak bitstring:", peak_bitstring)

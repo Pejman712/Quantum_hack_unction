@@ -4,7 +4,9 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import CircuitInstruction
 
 
-def _qubit_indices(qc: QuantumCircuit, instruction: CircuitInstruction) -> list[int]:
+# CircuitInstruction is a compiled (Rust) qiskit symbol with no type stub, so type
+# checkers see it as a variable rather than a class; the annotation is still accurate.
+def _qubit_indices(qc: QuantumCircuit, instruction: CircuitInstruction) -> list[int]:  # pyright: ignore[reportInvalidTypeForm]
     """Return the qubit indices an instruction acts on, in order.
 
     Args:
@@ -32,6 +34,23 @@ def _last_rx_or_cx_per_qubit(qc: QuantumCircuit) -> dict[int, int]:
             for q in _qubit_indices(qc, instruction):
                 last[q] = i
     return last
+
+
+def _first_rx_or_cx_per_qubit(qc: QuantumCircuit) -> dict[int, int]:
+    """Map each qubit to the data index of its first RX or CX gate.
+
+    Args:
+        qc (QuantumCircuit): Circuit to scan.
+
+    Returns:
+        dict[int, int]: Mapping of qubit index to the data index of its first RX or CX gate.
+    """
+    first: dict[int, int] = {}
+    for i, instruction in enumerate(qc.data):
+        if instruction.operation.name in ("rx", "cx"):
+            for q in _qubit_indices(qc, instruction):
+                first.setdefault(q, i)
+    return first
 
 
 def strip_rz_and_cx_from_start(qc: QuantumCircuit) -> QuantumCircuit:
@@ -69,6 +88,35 @@ def strip_rz_and_cx_from_start(qc: QuantumCircuit) -> QuantumCircuit:
     return new_qc
 
 
+def strip_rz_from_start(qc: QuantumCircuit) -> QuantumCircuit:
+    """Return a copy of ``qc`` with leading RZ gates removed, per qubit.
+
+    On each qubit, an RZ gate that occurs before that qubit's first RX or CX gate is
+    considered "leading" and dropped: while the qubit is still ``|0>`` an RZ is only a
+    global phase. If a qubit has no RX/CX gate, every RZ on it is treated as leading.
+
+    Unlike :func:`strip_rz_and_cx_from_start`, this drops only RZ gates: CX gates are
+    always kept, so the per-qubit boundary is fixed in advance rather than tracked as
+    qubits become entangled.
+
+    Args:
+        qc (QuantumCircuit): Circuit to strip.
+
+    Returns:
+        QuantumCircuit: A new circuit with leading RZ gates removed.
+    """
+    first_boundary = _first_rx_or_cx_per_qubit(qc)
+    new_qc = QuantumCircuit(qc.num_qubits)
+    end = len(qc.data)
+    for i, instruction in enumerate(qc.data):
+        op = instruction.operation
+        indices = _qubit_indices(qc, instruction)
+        if op.name == "rz" and i < first_boundary.get(indices[0], end):
+            continue
+        new_qc.append(op, indices)
+    return new_qc
+
+
 def strip_rz_from_end(qc: QuantumCircuit) -> QuantumCircuit:
     """Return a copy of ``qc`` with trailing RZ gates removed, per qubit.
 
@@ -91,3 +139,15 @@ def strip_rz_from_end(qc: QuantumCircuit) -> QuantumCircuit:
             continue
         new_qc.append(op, indices)
     return new_qc
+
+
+def strip(qc: QuantumCircuit) -> QuantumCircuit:
+    """Return a copy of ``qc`` with leading RZ/CX and trailing RZ gates removed.
+
+    Args:
+        qc (QuantumCircuit): Circuit to strip.
+
+    Returns:
+        QuantumCircuit: A new circuit with the leading and trailing gates removed.
+    """
+    return strip_rz_from_end(strip_rz_and_cx_from_start(qc))
