@@ -6,7 +6,17 @@ For the full CLI (diagram rendering, arbitrary paths) use: uv run quantum-hack -
 
 from pathlib import Path
 
-from quantum_hack import *
+from quantum_hack import (
+    circuit_stats,
+    find_challenge,
+    load_circuit,
+    matrix_product_operators,
+    save_circuit_drawing,
+    snap_rotations_to_pi_over_4,
+    statevector_simulation,
+    strip,
+    transpile_to_basis,
+)
 
 # The challenge to run. The QASM file and drawing directory are detected from this.
 TASK = "challenge-8_1"
