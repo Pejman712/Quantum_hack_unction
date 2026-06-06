@@ -2,6 +2,13 @@
 
 from quantum_hack.challenges import find_challenge, iter_challenges, load_circuit
 from quantum_hack.metrics import circuit_stats, compare_circuits
+from quantum_hack.results import (
+    ChallengeStatus,
+    SubmissionRecord,
+    challenge_status,
+    is_known_failure,
+    load_results,
+)
 from quantum_hack.simulation import matrix_product_operators, statevector_simulation
 from quantum_hack.strip import (
     strip,
@@ -36,6 +43,11 @@ __all__ = [
     "load_circuit",
     "find_challenge",
     "iter_challenges",
+    "load_results",
+    "challenge_status",
+    "is_known_failure",
+    "ChallengeStatus",
+    "SubmissionRecord",
     "verify_equivalence",
     "circuits_equivalent",
 ]

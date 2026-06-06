@@ -140,6 +140,19 @@ def test_matrix_product_operators_verbose_prints_ranking(capsys):
     assert "1. 001" in out
 
 
+def test_matrix_product_operators_handles_circuit_wider_than_default_backend():
+    # 64 qubits exceeds the AerSimulator's memory-based default ceiling (63).
+    # Transpiling against the backend target used to raise CircuitTooWideForTarget;
+    # the MPS method itself handles widths well beyond that.
+    qc = QuantumCircuit(64)
+    qc.x(0)
+    qc.x(63)
+    bitstring, prob = matrix_product_operators(qc, shots=256)
+    assert len(bitstring) == 64
+    assert prob == pytest.approx(1.0)
+    assert bitstring.count("1") == 2  # deterministic: exactly the two flipped qubits
+
+
 @pytest.mark.skipif(not SAMPLE_QASM.exists(), reason="sample QASM not present")
 def test_runs_on_real_qasm_circuit():
     qc = QuantumCircuit.from_qasm_file(str(SAMPLE_QASM))
