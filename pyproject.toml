@@ -13,9 +13,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Tensor-network amplitude/marginal backend for large circuits. GPU Aer on LUMI comes from the
-# CSC Qiskit container (qiskit-aer-gpu-rocm), not from PyPI, so it is not listed here.
-tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3"]
+# Tensor-network amplitude/marginal backend for large circuits.
+# On the DGX cluster (CUDA 13.0 driver): uv sync --extra tn installs torch from the
+# pytorch-cuda index below (cu126 wheel; CUDA forward-compatible with the 13.0 driver).
+# If a cu130 wheel becomes available, update the index URL accordingly.
+tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3", "torch>=2.0"]
+
+[tool.uv.sources]
+# Route torch to PyTorch's CUDA 12.6 index on Linux x86_64 (the DGX cluster).
+# CUDA 13.0 driver is forward-compatible with cu126 wheels.
+# On other platforms (macOS, Windows) uv falls back to the default PyPI CPU wheel.
+torch = [
+    { index = "pytorch-cuda", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
 
 [project.scripts]
 quantum-hack = "quantum_hack.cli:main"
