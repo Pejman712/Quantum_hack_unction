@@ -17,6 +17,29 @@ from qiskit.quantum_info import Statevector
 from qiskit_aer import AerSimulator
 
 
+def probe_gpu() -> bool:
+    """Return ``True`` if AerSimulator can actually execute a circuit on GPU.
+
+    ``available_devices()`` only reflects CUDA hardware presence; this function runs a
+    real 1-qubit job so it catches CPU-only Aer wheels that list the GPU but cannot use it.
+    The result is not cached — callers should call this once at startup.
+
+    Returns:
+        bool: ``True`` if GPU simulation works end-to-end, ``False`` otherwise.
+    """
+    try:
+        from qiskit import QuantumCircuit as _QC
+
+        sim = AerSimulator(method="statevector", device="GPU")
+        qc = _QC(1)
+        qc.measure_all()
+        qc_t = transpile(qc, basis_gates=_simulator_basis_gates(sim))
+        sim.run(qc_t, shots=1).result()
+        return True
+    except Exception:
+        return False
+
+
 def _simulator_basis_gates(sim: AerSimulator) -> list[str]:
     """Return the simulator's natively supported standard gate names.
 
@@ -177,7 +200,23 @@ def mps_sample_counts(
     )
 
     qc_t = transpile(qc_copy, basis_gates=_simulator_basis_gates(sim))
-    return sim.run(qc_t, shots=shots).result().get_counts()
+    try:
+        return sim.run(qc_t, shots=shots).result().get_counts()
+    except RuntimeError as exc:
+        if device == "CPU":
+            raise
+        import warnings
+        warnings.warn(
+            f"GPU MPS failed ({exc}); the installed qiskit-aer wheel is CPU-only. "
+            "Retrying on CPU. Build qiskit-aer from source with CUDA to use the GPU.",
+            stacklevel=2,
+        )
+        sim_cpu = AerSimulator(
+            method="matrix_product_state",
+            matrix_product_state_max_bond_dimension=bond_dim,
+        )
+        qc_t_cpu = transpile(qc_copy, basis_gates=_simulator_basis_gates(sim_cpu))
+        return sim_cpu.run(qc_t_cpu, shots=shots).result().get_counts()
 
 
 def statevector_probability(qc: QuantumCircuit, bitstring: str) -> float:

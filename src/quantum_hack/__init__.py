@@ -37,6 +37,7 @@ from quantum_hack.results import (
 from quantum_hack.simulation import (
     matrix_product_operators,
     mps_sample_counts,
+    probe_gpu,
     statevector_probability,
     statevector_simulation,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "matrix_product_operators",
     "mps_sample_counts",
     "statevector_probability",
+    "probe_gpu",
     # peak solving
     "solve_peak",
     "PeakResult",

@@ -18,6 +18,7 @@ import csv
 import json
 import multiprocessing as mp
 import os
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ from queue import Empty
 from quantum_hack.challenges import DEFAULT_DATA_DIR, DIFFICULTIES, load_circuit
 from quantum_hack.peak.result import PeakResult
 from quantum_hack.peak.solve import solve_peak
+from quantum_hack.simulation import probe_gpu
 from quantum_hack.results import (
     DEFAULT_RESULTS_DIR,
     ChallengeStatus,
@@ -554,6 +556,20 @@ def failed_challenges(
     return [c for c in compare_cache_to_results(results_dir) if c.failed]
 
 
+def _slurm_shard() -> tuple[int, int] | None:
+    """Read SLURM array task ID and count from the environment, if present.
+
+    Returns:
+        tuple[int, int] | None: ``(SLURM_ARRAY_TASK_ID, SLURM_ARRAY_TASK_COUNT)`` when both
+        env vars are set, ``None`` otherwise.
+    """
+    task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
+    task_count = os.environ.get("SLURM_ARRAY_TASK_COUNT")
+    if task_id is not None and task_count is not None:
+        return int(task_id), int(task_count)
+    return None
+
+
 def _parse_shard(text: str) -> tuple[int, int]:
     """Parse a ``"i/N"`` shard argument.
 
@@ -590,8 +606,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--shard", type=_parse_shard, default=None, help="SLURM array shard 'i/N'.")
     parser.add_argument("--no-resume", action="store_false", dest="resume")
-    parser.add_argument("--gpu", action="store_true", help="Use GPU Aer (LUMI standard-g).")
-    parser.add_argument("--device", default="CPU", help="Aer device when --gpu is set.")
+    parser.add_argument("--gpu", action="store_true", help="Use GPU Aer; auto-sets --device GPU and probes availability.")
+    parser.add_argument("--device", default=None, help="Aer device override (default: GPU when --gpu, else CPU).")
     parser.add_argument("--shots", type=int, default=8192)
     parser.add_argument("--bond-dim", type=int, default=128)
     parser.add_argument(
@@ -632,6 +648,29 @@ def main(argv: list[str] | None = None) -> None:
     """
     args = build_parser().parse_args(argv)
 
+    # --gpu implies --device GPU unless the user explicitly overrode it.
+    device: str = args.device if args.device is not None else ("GPU" if args.gpu else "CPU")
+
+    # Validate GPU availability when requested; fall back to CPU with a clear warning.
+    gpu_available = args.gpu
+    if args.gpu:
+        if probe_gpu():
+            print("GPU probe: OK — Aer GPU simulation available.", flush=True)
+        else:
+            warnings.warn(
+                "GPU probe failed: the installed qiskit-aer wheel is CPU-only. "
+                "Falling back to CPU. Build qiskit-aer from source with CUDA to use the GPU."
+            )
+            gpu_available = False
+            device = "CPU"
+
+    # Auto-detect SLURM array shard when --shard was not given explicitly.
+    shard = args.shard
+    if shard is None:
+        shard = _slurm_shard()
+        if shard is not None:
+            print(f"SLURM array detected: shard {shard[0]}/{shard[1]}", flush=True)
+
     if args.aggregate_only:
         for path in write_results_csvs(args.results_dir):
             print(f"Updated {path}")
@@ -671,12 +710,12 @@ def main(argv: list[str] | None = None) -> None:
         results_dir=args.results_dir,
         difficulty=args.difficulty,
         challenge=args.challenge,
-        shard=args.shard,
+        shard=shard,
         resume=args.resume,
         time_budget_s=args.time_budget or None,  # --time-budget 0 means no limit
         on_solved=_report,
-        gpu_available=args.gpu,
-        device=args.device,
+        gpu_available=gpu_available,
+        device=device,
         shots=args.shots,
         bond_dim=args.bond_dim,
     )
