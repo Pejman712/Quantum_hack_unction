@@ -1,6 +1,7 @@
 """Quantum hackathon toolkit: load QASM circuits, find peak bitstrings, strip gates."""
 
 from quantum_hack.challenges import find_challenge, iter_challenges, load_circuit
+from quantum_hack.majority_bitstring import weighted_majority_bitstring
 from quantum_hack.metrics import circuit_stats, compare_circuits
 from quantum_hack.results import (
     ChallengeStatus,
@@ -50,4 +51,5 @@ __all__ = [
     "SubmissionRecord",
     "verify_equivalence",
     "circuits_equivalent",
+    "weighted_majority_bitstring",
 ]
