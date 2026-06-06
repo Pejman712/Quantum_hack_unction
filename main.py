@@ -30,8 +30,10 @@ def main() -> None:
     print(f"Circuit: {QASM_PATH}")
     print("Stats:", circuit_stats(qc))
 
-    print("Exact peak bitstring (statevector):", statevector_simulation(qc))
-    print("Estimated peak bitstring (MPS):    ", matrix_product_operators(qc))
+    bitstring, prob = statevector_simulation(qc)
+    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    bitstring, prob = matrix_product_operators(qc)
+    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     path = save_circuit_drawing(
         qc, "challenge-8_1_before", out_dir=HERE / "circuit_drawings", timestamp=False
@@ -39,14 +41,28 @@ def main() -> None:
     print("Saved drawing:", path)
 
     clean_qc = strip_rz_and_cx_from_start(qc)
-    snapped_qc = snap_rotations_to_pi_over_4(clean_qc, threshold=0.02)
 
+    print("\nStats after stripping Rz and Cx from start:", circuit_stats(clean_qc))
+
+    bitstring, prob = statevector_simulation(clean_qc)
+    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    bitstring, prob = matrix_product_operators(clean_qc)
+    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
+
+    path = save_circuit_drawing(
+        clean_qc, "challenge-8_1_clean", out_dir=HERE / "circuit_drawings", timestamp=False
+    )
+    print("Saved drawing:", path)
+
+    snapped_qc = snap_rotations_to_pi_over_4(clean_qc, threshold=0.02)
     snapped_qc = transpile_to_basis(snapped_qc, optimization_level=2)
 
-    print("Stats after snapping and transpilation:", circuit_stats(snapped_qc))
+    print("\nStats after snapping and transpilation:", circuit_stats(snapped_qc))
 
-    print("Exact peak bitstring (statevector):", statevector_simulation(snapped_qc))
-    print("Estimated peak bitstring (MPS):    ", matrix_product_operators(qc))
+    bitstring, prob = statevector_simulation(snapped_qc)
+    print("Exact peak bitstring (statevector):", bitstring, f"(probability {prob:.2%})")
+    bitstring, prob = matrix_product_operators(snapped_qc)
+    print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
     path = save_circuit_drawing(
         snapped_qc, "challenge-8_1_after", out_dir=HERE / "circuit_drawings", timestamp=False
