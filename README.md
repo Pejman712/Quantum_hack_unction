@@ -17,7 +17,7 @@ difficulty tiers (`very_easy`, `easy`, `moderate`, `hard`, `very_hard`).
   either exactly (dense statevector) or approximately (matrix-product-state sampling) for
   circuits too large to simulate exactly.
 - **Circuit simplification** — strip leading/trailing rotation gates, snap near-grid
-  rotation angles to multiples of π/4, and transpile to an `rx`/`rz`/`cx` basis.
+  rotation angles to multiples of π/8, and transpile to an `rx`/`rz`/`cx` basis.
 - **Equivalence checking** — prove that an optimized circuit still implements the same
   operation as the original (up to unobservable global/relative phase) via MQT QCEC.
 - **Metrics & diagrams** — before/after gate-count and depth comparisons, plus PNG/SVG
@@ -72,7 +72,7 @@ from quantum_hack import (
     statevector_simulation,
     matrix_product_operators,
     strip_rz_and_cx_from_start,
-    snap_rotations_to_pi_over_4,
+    snap_rotations_to_pi_over_8,
     transpile_to_basis,
     compare_circuits,
     circuits_equivalent,
@@ -88,7 +88,7 @@ print(matrix_product_operators(qc))    # -> (peak_bitstring, estimated_probabili
 
 # Simplify, then confirm the result is still functionally the same circuit.
 clean = strip_rz_and_cx_from_start(qc)
-snapped = snap_rotations_to_pi_over_4(clean, threshold=0.02)
+snapped = snap_rotations_to_pi_over_8(clean, threshold=0.02)
 optimized = transpile_to_basis(snapped, optimization_level=2)
 
 print(compare_circuits(qc, optimized))     # depth/size/per-gate deltas
@@ -114,7 +114,7 @@ src/quantum_hack/
   challenges.py     load_circuit, iter_challenges (batch over qasm_data/)
   simulation.py     statevector_simulation, matrix_product_operators
   strip.py          strip_rz_and_cx_from_start, strip_rz_from_end
-  transform.py      transpile_to_basis, snap_rotations_to_pi_over_4
+  transform.py      transpile_to_basis, snap_rotations_to_pi_over_8
   metrics.py        circuit_stats, compare_circuits
   verification.py   verify_equivalence, circuits_equivalent
   viz.py            save_circuit_drawing, save_cx_drawing, cx_only_circuit, save_counts_histogram
