@@ -9,14 +9,84 @@ from utils import iter_layers, merge_layers, elem_counts, merge_gates, get_tn_in
 
 import numpy as np
 import time
-
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%dT%H:%M:%S%z',
     level=logging.INFO
 )
+
+
+# ------------------------------------------------------------------
+#  Segment utilities for U1U1d P1 U2U2d P2 U3U3d structure
+# ------------------------------------------------------------------
+
+def segment_circuit(circuit: QuantumCircuit, cuts: tuple[float, ...] = (1/3, 2/3)) -> list[QuantumCircuit]:
+    """Split circuit.data at fractional gate-index positions.
+
+    For the canonical 3-block structure the natural cuts are at 1/3 and 2/3,
+    giving segments whose internal centers sit at 1/6, 1/2, 5/6 of the total.
+    P layers are thin relative to UU† blocks so approximate cuts work well.
+    """
+    n_gates = len(circuit.data)
+    indices = [0] + [int(n_gates * c) for c in cuts] + [n_gates]
+    segments = []
+    for lo, hi in zip(indices, indices[1:]):
+        seg = QuantumCircuit(circuit.num_qubits)
+        for inst in circuit.data[lo:hi]:
+            seg.append(inst.operation, inst.qubits, inst.clbits)
+        segments.append(seg)
+    return segments
+
+
+def _worker(args):
+    """Top-level function required by ProcessPoolExecutor (must be picklable)."""
+    seg, idx, kwargs = args
+    logging.info(f"[segment {idx}] start ({len(seg.data)} gates)")
+    t0 = time.perf_counter()
+    result = mpo_compress_unswap(seg, center_ratio=0.5, **kwargs)
+    logging.info(f"[segment {idx}] done in {time.perf_counter() - t0:.1f}s")
+    return idx, result
+
+
+def parallel_segment_unswap(
+    circuit: QuantumCircuit,
+    cuts: tuple[float, ...] = (1/3, 2/3),
+    n_workers: int = 3,
+    **kwargs,
+) -> list[tuple]:
+    """Run mpo_compress_unswap in parallel over the 3 UU† segments.
+
+    Splits at `cuts` (default 1/3, 2/3), dispatches one worker per segment with
+    center_ratio=0.5 — equivalent to global centers at 1/6, 1/2, 5/6.
+
+    Args:
+        circuit:   Full obfuscated circuit (U1U1d P1 U2U2d P2 U3U3d).
+        cuts:      Fractional gate-index positions for segmentation.
+        n_workers: Max parallel processes (set to 1 to debug serially).
+        **kwargs:  Forwarded to mpo_compress_unswap (max_bond, cutoff, etc.).
+
+    Returns:
+        List of (mpo_core, layers_left, layers_right, stats_data) in segment order.
+    """
+    segments = segment_circuit(circuit, cuts)
+    logging.info(
+        f"[parallel_segment_unswap] {len(segments)} segments: "
+        + ", ".join(f"{len(s.data)} gates" for s in segments)
+    )
+
+    work = [(seg, idx, kwargs) for idx, seg in enumerate(segments)]
+    results = [None] * len(segments)
+
+    with ProcessPoolExecutor(max_workers=n_workers) as pool:
+        futures = {pool.submit(_worker, item): item[1] for item in work}
+        for fut in as_completed(futures):
+            idx, result = fut.result()
+            results[idx] = result
+
+    return results
 
 # ------------------------------------------------------------------
 #  Rewiring
