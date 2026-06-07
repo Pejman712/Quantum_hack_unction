@@ -141,4 +141,4 @@ make format        # ruff format
 
 ## License
 
-No license has been declared yet. Add a `LICENSE` file before distributing.
+This project is licensed under the MIT License. See the LICENSE file for details.
