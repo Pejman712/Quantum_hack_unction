@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 0.0.1
 
 Add majority bit string function to get answer out of low probability string.
 
@@ -78,7 +78,8 @@ Add majority bit string function to get answer out of low probability string.
 - **Tooling** — `pyproject.toml` (uv-managed, Python 3.12+) with an optional `tn` extra
   (`quimb`/`cotengra`) for the tensor-network backend, pinned `uv.lock`, `Makefile`, `setup.ps1`,
   a `pre-push` lint+test hook, GitHub Actions CI, and a pull-request template.
-- **Documentation** — `README.md` and `GUIDE.md`.
+- **Documentation** — `README.md`, `GUIDE.md`, and `Lumi.md` (a LUMI runbook: container
+  selection, per-tier `sbatch` recipes, monitoring, and the common pitfalls hit bringing it up).
 
 ### Changed
 

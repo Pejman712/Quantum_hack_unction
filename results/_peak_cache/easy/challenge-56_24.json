@@ -1,0 +1,14 @@
+{
+  "bitstring": "10011001001111101111111011101011101101010011001011110001",
+  "probability": 0.23272705078125,
+  "method": "MPS+marginal",
+  "num_qubits": 56,
+  "confidence": 0.7836366628024438,
+  "is_local_max": null,
+  "neighbor_gap": null,
+  "agreeing_methods": [
+    "MPS",
+    "marginal"
+  ],
+  "notes": "MPS top p=0.233 (bond=128); marginal vote; MPS and marginal agree"
+}
