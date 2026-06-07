@@ -1,0 +1,14 @@
+{
+  "bitstring": "1010101011001000",
+  "probability": 0.46696962421756183,
+  "method": "marginal+statevector",
+  "num_qubits": 16,
+  "confidence": 0.9765677301547697,
+  "is_local_max": true,
+  "neighbor_gap": 0.3693825801172755,
+  "agreeing_methods": [
+    "marginal",
+    "statevector"
+  ],
+  "notes": "exact statevector peak p=0.467; marginal vote"
+}
