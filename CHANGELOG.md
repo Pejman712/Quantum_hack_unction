@@ -29,8 +29,11 @@ Add majority bit string function to get answer out of low probability string.
     (magnitude + single-bit-flip local-max + multi-method consensus). It consults
     `is_known_failure` so a rejected bitstring is never re-proposed.
   - `optimize` — `optimize_circuit`, a light greedy-with-rollback reducer (`strip` → angle-snap →
-    `transpile` opt-3) that keeps a step only if it does not grow a weighted `cost` and preserves
-    the peak bitstring; reports a `by_construction`/`peak_verified` outcome guarantee.
+    `transpile` opt-3 → optional `pyzx`) that keeps a step only if it does not grow a weighted
+    `cost` and preserves the peak bitstring; reports a `by_construction`/`peak_verified` outcome
+    guarantee. Benchmarking helpers (`optimize_circuits`, `OptimizationStats`,
+    `OptimizationSummary`, `format_optimization_table`) compare before/after CX depth, size, and CX
+    count across a set of circuits.
   - `batch` — `run_batch`/`solve_job` solve every challenge (or one `--challenge`, a tier, or a
     SLURM `--shard`) with per-circuit JSON checkpoints (resume- and array-safe) and a per-circuit
     `--time-budget` that runs each solve in a subprocess and hard-kills it on overrun, recording a
@@ -43,9 +46,11 @@ Add majority bit string function to get answer out of low probability string.
   - `strip` — `strip_rz_and_cx_from_start`, `strip_rz_from_start`, and `strip_rz_from_end`
     to drop leading/trailing rotation gates per qubit, plus `strip` to apply the leading
     RZ/CX and trailing RZ passes together.
-  - `transform` — `transpile_to_basis` (rewrite to an `rx`/`rz`/`cx` basis) and
-    `snap_rotations_to_pi_over_4` (snap near-grid angles to multiples of π/4).
-  - `metrics` — `circuit_stats` and `compare_circuits` for before/after depth, size, and
+  - `transform` — `transpile_to_basis` (rewrite to an `rx`/`rz`/`cx` basis, restoring qubit order
+    after any SWAP-elision permutation), `snap_rotations_to_pi_over_8` (snap near-grid angles to
+    multiples of π/8), and `optimize_with_pyzx` (optional ZX-calculus reduction via the `pyzx`
+    `[zx]` extra).
+  - `metrics` — `circuit_stats` and `compare_circuits` for before/after depth, CX depth, size, and
     per-gate deltas.
   - `verification` — `verify_equivalence` and `circuits_equivalent`, wrapping MQT QCEC and
     treating equivalence up to global/relative phase as equivalent.
@@ -77,13 +82,22 @@ Add majority bit string function to get answer out of low probability string.
 
 ### Changed
 
-- `snap_rotations_to_pi_over_4` never snaps an RZ to 0 (or to a multiple of 2*pi)
-  by default: zeroing an RZ would discard a real phase, so such an RZ keeps its
-  original angle. RX angles still snap to 0. Pass `snap_rz_to_zero=True` to opt in
-  to snapping near-zero RZ angles to 0 as well.
+- `snap_rotations_to_pi_over_8` snaps near-grid RZ/RX angles to multiples of π/8 (a finer grid
+  than the earlier π/4). It never snaps an RZ to 0 (or to a multiple of 2*pi) by default: zeroing
+  an RZ would discard a real phase, so such an RZ keeps its original angle. RX angles still snap to
+  0. Pass `snap_rz_to_zero=True` to opt in to snapping near-zero RZ angles to 0 as well.
+- The `optimize` pipeline gained a final, cost-guarded `pyzx` ZX-calculus step (skipped above
+  `PYZX_MAX_QUBITS` qubits or when `pyzx` is absent), and now reports CX depth as its headline
+  metric. On the arbitrary-angle challenge circuits pyzx consistently grows the gate count, so the
+  cost guard rolls it back; transpile (opt-2 ≈ opt-3) does the real reduction.
 
 ### Fixed
 
+- `transpile_to_basis` now restores the input qubit order after transpilation. At
+  `optimization_level >= 1` the transpiler can elide SWAP gates into a layout permutation, which
+  relabels the peak bitstring of a measurement-free circuit — silently producing a wrong answer
+  that `optimize_circuit` trusted as `by_construction`. The permutation is detected from the
+  transpile layout and undone by relabelling wires (gate counts unchanged).
 - `statevector_simulation` now reads the raw probability array (numpy `argpartition`) instead of
   `Statevector.probabilities_dict()`, which materialised a string label for every one of the
   `2**n` basis states (~4 GiB at 24 qubits) and effectively limited exact simulation to tiny

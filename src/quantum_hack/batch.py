@@ -374,7 +374,7 @@ def run_batch(
             runs inline with no limit. A number runs each solve in a subprocess and terminates it
             on overrun, recording a ``"timeout"`` result instead.
         optimize (bool): If ``True``, reduce each circuit with the peak-preserving optimize pipeline
-            (strip -> snap -> transpile) before solving and record the applied steps in each
+            (strip -> snap -> transpile -> pyzx) before solving and record the applied steps in each
             result's notes. ``False`` (default) solves circuits as loaded. Note that resume reuses a
             cached result regardless of this flag, so re-run with ``resume=False`` to apply it to
             already-cached circuits.
@@ -673,8 +673,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Before solving, reduce each circuit with the peak-preserving optimize pipeline "
-            "(strip -> snap -> transpile). Off by default; the lossy 'snap' step is kept only when "
-            "the exact peak is verified unchanged. The applied steps are reported per circuit."
+            "(strip -> snap -> transpile -> pyzx). Off by default; the lossy 'snap' step is kept "
+            "only when the exact peak is verified unchanged, and the optional 'pyzx' ZX-calculus "
+            "step is skipped when pyzx is not installed. The applied steps are reported per "
+            "circuit."
         ),
     )
     parser.add_argument(

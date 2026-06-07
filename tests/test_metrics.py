@@ -17,6 +17,7 @@ def test_circuit_stats_reports_basic_metrics():
     assert stats["ops"]["cx"] == 1
     assert stats["size"] > 2  # h expands into multiple basis gates
     assert stats["depth"] >= 2
+    assert stats["cx_depth"] == 1  # exactly one CX layer on the critical path
 
 
 def test_compare_circuits_reports_deltas():
@@ -34,6 +35,7 @@ def test_compare_circuits_reports_deltas():
     assert result["ops"]["cx"] == {"before": 3, "after": 1, "delta": -2}
     assert result["ops"]["rx"] == {"before": 0, "after": 1, "delta": 1}
     assert result["size"] == {"before": 3, "after": 2, "delta": -1}
+    assert result["cx_depth"] == {"before": 3, "after": 1, "delta": -2}
 
 
 def test_compare_circuits_includes_gates_from_either_side():

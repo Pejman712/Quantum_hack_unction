@@ -12,7 +12,7 @@ from quantum_hack import (
     find_challenge,
     load_circuit,
     matrix_product_operators,
-    snap_rotations_to_pi_over_4,
+    snap_rotations_to_pi_over_8,
     strip,
     transpile_to_basis,
     weighted_majority_bitstring,
@@ -51,7 +51,7 @@ def main() -> None:
     bitstring, prob = matrix_product_operators(clean_qc)
     print("Estimated peak bitstring (MPS):    ", bitstring, f"(probability {prob:.2%})")
 
-    snapped_qc = snap_rotations_to_pi_over_4(clean_qc, threshold=0.03, snap_rz_to_zero=True)
+    snapped_qc = snap_rotations_to_pi_over_8(clean_qc, threshold=0.03, snap_rz_to_zero=True)
     snapped_qc = transpile_to_basis(snapped_qc, optimization_level=2)
 
     print("\nStats after snapping and transpilation:", circuit_stats(snapped_qc))
