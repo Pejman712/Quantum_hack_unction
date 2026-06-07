@@ -19,11 +19,14 @@ import json
 import multiprocessing as mp
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from queue import Empty
 
+from qiskit import QuantumCircuit
+
 from quantum_hack.challenges import DEFAULT_DATA_DIR, DIFFICULTIES, load_circuit
+from quantum_hack.optimize import default_pipeline, optimize_circuit
 from quantum_hack.peak.result import PeakResult
 from quantum_hack.peak.solve import solve_peak
 from quantum_hack.results import (
@@ -152,6 +155,53 @@ def _write_json_atomic(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
+def _optimize_for_solve(qc: QuantumCircuit) -> tuple[QuantumCircuit, str]:
+    """Reduce ``qc`` with the peak-preserving optimize pipeline before solving.
+
+    Args:
+        qc (QuantumCircuit): Circuit loaded from disk.
+
+    Returns:
+        tuple[QuantumCircuit, str]: The reduced circuit and a note naming the steps that were
+        accepted and the resulting outcome guarantee, e.g.
+        ``"optimize[steps=strip+snap, guarantee=peak_verified]"``.
+    """
+    result = optimize_circuit(qc)
+    steps = "+".join(result.steps) if result.steps else "none"
+    return result.optimized, f"optimize[steps={steps}, guarantee={result.equivalence}]"
+
+
+def _solve_circuit(
+    qc: QuantumCircuit,
+    solver: Solver,
+    challenge: str,
+    records: list[SubmissionRecord] | None,
+    solve_kwargs: dict,
+    optimize: bool,
+) -> PeakResult:
+    """Optionally optimize ``qc``, solve it, and fold any optimize note into the result.
+
+    Args:
+        qc (QuantumCircuit): Loaded circuit to solve.
+        solver (Solver): Solver callable (e.g. ``solve_peak``).
+        challenge (str): Bare challenge name.
+        records (list[SubmissionRecord] | None): Existing submissions for known-failure avoidance.
+        solve_kwargs (dict): Extra keyword arguments forwarded to ``solver``.
+        optimize (bool): If ``True``, reduce ``qc`` with :func:`_optimize_for_solve` before solving.
+
+    Returns:
+        PeakResult: The solved result, with the optimize note prepended to ``notes`` when
+        ``optimize`` is set.
+    """
+    note = ""
+    if optimize:
+        qc, note = _optimize_for_solve(qc)
+    result = solver(qc, challenge=challenge, records=records, **solve_kwargs)
+    if note:
+        result = replace(result, notes=f"{note}; {result.notes}" if result.notes else note)
+    return result
+
+
 def _solve_worker(
     queue: "mp.Queue",
     solver: Solver,
@@ -159,6 +209,7 @@ def _solve_worker(
     challenge: str,
     records: list[SubmissionRecord] | None,
     solve_kwargs: dict,
+    optimize: bool,
 ) -> None:
     """Subprocess entry point: load a circuit, solve it, and post the result to ``queue``.
 
@@ -172,13 +223,14 @@ def _solve_worker(
         challenge (str): Bare challenge name.
         records (list[SubmissionRecord] | None): Existing submissions for known-failure avoidance.
         solve_kwargs (dict): Extra keyword arguments forwarded to ``solver``.
+        optimize (bool): If ``True``, reduce the circuit with the optimize pipeline before solving.
 
     Returns:
         None
     """
     try:
         qc = load_circuit(path)
-        result = solver(qc, challenge=challenge, records=records, **solve_kwargs)
+        result = _solve_circuit(qc, solver, challenge, records, solve_kwargs, optimize)
         queue.put(("ok", result.to_dict()))
     except Exception as exc:  # report any solver failure back to the parent process
         queue.put(("err", repr(exc)))
@@ -191,6 +243,7 @@ def _solve_with_budget(
     records: list[SubmissionRecord] | None,
     solve_kwargs: dict,
     time_budget_s: float,
+    optimize: bool,
 ) -> PeakResult:
     """Run ``solver`` on a circuit in a subprocess, killing it if it exceeds ``time_budget_s``.
 
@@ -201,6 +254,7 @@ def _solve_with_budget(
         records (list[SubmissionRecord] | None): Existing submissions for known-failure avoidance.
         solve_kwargs (dict): Extra keyword arguments forwarded to ``solver``.
         time_budget_s (float): Wall-clock seconds allowed before the subprocess is terminated.
+        optimize (bool): If ``True``, reduce the circuit with the optimize pipeline before solving.
 
     Returns:
         PeakResult: The solved result.
@@ -213,7 +267,7 @@ def _solve_with_budget(
     queue = ctx.Queue()
     proc = ctx.Process(
         target=_solve_worker,
-        args=(queue, solver, path, challenge, records, solve_kwargs),
+        args=(queue, solver, path, challenge, records, solve_kwargs, optimize),
         daemon=True,
     )
     proc.start()
@@ -240,6 +294,7 @@ def solve_job(
     solver: Solver = solve_peak,
     records: list[SubmissionRecord] | None = None,
     time_budget_s: float | None = None,
+    optimize: bool = False,
     **solve_kwargs: object,
 ) -> PeakResult:
     """Solve one circuit, loading from / writing to its JSON checkpoint.
@@ -256,6 +311,9 @@ def solve_job(
         time_budget_s (float | None): Per-circuit wall-clock budget in seconds. ``None`` (default)
             runs the solver inline with no limit; a number runs it in a subprocess and terminates
             it (raising :class:`TimeoutError`) if it overruns.
+        optimize (bool): If ``True``, reduce the circuit with the peak-preserving optimize pipeline
+            (:func:`~quantum_hack.optimize.optimize_circuit`) before solving and record the applied
+            steps in the result's notes. ``False`` (default) solves the circuit as loaded.
         **solve_kwargs (object): Extra keyword arguments forwarded to ``solver``.
 
     Returns:
@@ -271,10 +329,10 @@ def solve_job(
 
     if time_budget_s is None:
         qc = load_circuit(job.path)
-        result = solver(qc, challenge=job.name, records=records, **solve_kwargs)
+        result = _solve_circuit(qc, solver, job.name, records, solve_kwargs, optimize)
     else:
         result = _solve_with_budget(
-            solver, str(job.path), job.name, records, solve_kwargs, time_budget_s
+            solver, str(job.path), job.name, records, solve_kwargs, time_budget_s, optimize
         )
     _write_json_atomic(cache, result.to_dict())
     return result
@@ -290,6 +348,7 @@ def run_batch(
     resume: bool = True,
     solver: Solver = solve_peak,
     time_budget_s: float | None = None,
+    optimize: bool = False,
     on_solved: Callable[["CircuitJob", PeakResult, bool], None] | None = None,
     **solve_kwargs: object,
 ) -> list[PeakResult]:
@@ -314,6 +373,11 @@ def run_batch(
         time_budget_s (float | None): Per-circuit wall-clock budget in seconds; ``None`` (default)
             runs inline with no limit. A number runs each solve in a subprocess and terminates it
             on overrun, recording a ``"timeout"`` result instead.
+        optimize (bool): If ``True``, reduce each circuit with the peak-preserving optimize pipeline
+            (strip -> snap -> transpile -> pyzx) before solving and record the applied steps in each
+            result's notes. ``False`` (default) solves circuits as loaded. Note that resume reuses a
+            cached result regardless of this flag, so re-run with ``resume=False`` to apply it to
+            already-cached circuits.
         on_solved (Callable[[CircuitJob, PeakResult, bool], None] | None): Optional callback
             invoked after each circuit with ``(job, result, from_cache)`` so callers can stream
             progress; ``None`` disables it.
@@ -354,6 +418,7 @@ def run_batch(
                 solver=solver,
                 records=records,
                 time_budget_s=time_budget_s,
+                optimize=optimize,
                 **solve_kwargs,
             )
         except TimeoutError as exc:
@@ -604,6 +669,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help=(
+            "Before solving, reduce each circuit with the peak-preserving optimize pipeline "
+            "(strip -> snap -> transpile -> pyzx). Off by default; the lossy 'snap' step is kept "
+            "only when the exact peak is verified unchanged, and the optional 'pyzx' ZX-calculus "
+            "step is skipped when pyzx is not installed. The applied steps are reported per "
+            "circuit."
+        ),
+    )
+    parser.add_argument(
         "--write-csv",
         action="store_true",
         help="After solving, append pending rows to the per-difficulty CSVs from the cache.",
@@ -652,6 +728,15 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  FAILED {c.difficulty}/{c.challenge}: {c.detail}")
         return
 
+    if args.optimize:
+        pipeline_steps = " -> ".join(name for name, _, _ in default_pipeline())
+        print(
+            f"Optimization enabled; reducing each circuit before solving with: {pipeline_steps} "
+            "(peak-preserving -- the lossy 'snap' step is kept only when the exact peak is "
+            "verified unchanged, and is skipped on circuits too wide to verify).",
+            flush=True,
+        )
+
     def _report(job: CircuitJob, result: PeakResult, from_cache: bool) -> None:
         if result.method == "timeout":
             print(f"[timeout] {job.difficulty}/{job.name} (n={job.num_qubits}): {result.notes}",
@@ -659,10 +744,12 @@ def main(argv: list[str] | None = None) -> None:
             return
         tag = "cached" if from_cache else "solved"
         flag = "" if result.is_local_max in (True, None) else " [NOT local max]"
+        opt = result.notes.split("; ", 1)[0]
+        opt_tag = f"  {opt}" if opt.startswith("optimize[") else ""
         print(
             f"[{tag}] {job.difficulty}/{job.name} (n={result.num_qubits}): "
             f"{result.bitstring}  p={result.probability:.3f}  conf={result.confidence:.2f}  "
-            f"{result.method}{flag}",
+            f"{result.method}{flag}{opt_tag}",
             flush=True,
         )
 
@@ -674,6 +761,7 @@ def main(argv: list[str] | None = None) -> None:
         shard=args.shard,
         resume=args.resume,
         time_budget_s=args.time_budget or None,  # --time-budget 0 means no limit
+        optimize=args.optimize,
         on_solved=_report,
         gpu_available=args.gpu,
         device=args.device,

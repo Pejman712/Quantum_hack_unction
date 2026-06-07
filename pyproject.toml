@@ -16,6 +16,9 @@ dependencies = [
 # Tensor-network amplitude/marginal backend for large circuits. GPU Aer on LUMI comes from the
 # CSC Qiskit container (qiskit-aer-gpu-rocm), not from PyPI, so it is not listed here.
 tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3"]
+# ZX-calculus circuit optimisation (quantum_hack.transform.optimize_with_pyzx). Optional: the
+# optimize pipeline simply skips the pyzx step when it is not installed.
+zx = ["pyzx>=0.8"]
 
 [project.scripts]
 quantum-hack = "quantum_hack.cli:main"

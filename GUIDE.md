@@ -95,10 +95,10 @@ Submitted peak-bitstring guesses are logged in `results/<difficulty>_bitstrings.
 - `transpile_to_basis(qc, basis_gates=None, optimization_level=0, **kw) -> QuantumCircuit`
   — rewrite into the basis (default `["rx", "rz", "cx"]`). Use `optimization_level=0` to only
   rewrite, `2`/`3` to optimize harder. Extra kwargs pass through to `qiskit.transpile`.
-- `snap_rotations_to_pi_over_4(qc, threshold=0.01) -> QuantumCircuit` — for every `rz`/`rx`,
-  if its angle is within `threshold * (π/4)` of a multiple of π/4, snap it to that exact
+- `snap_rotations_to_pi_over_8(qc, threshold=0.01) -> QuantumCircuit` — for every `rz`/`rx`,
+  if its angle is within `threshold * (π/8)` of a multiple of π/8, snap it to that exact
   multiple (wrapped into `(-π, π]`). `threshold` is a fraction of the grid spacing, so the
-  default snaps within 1% of π/4. Symbolic/unbound parameters are left alone; an RZ is
+  default snaps within 1% of π/8. Symbolic/unbound parameters are left alone; an RZ is
   never snapped to 0 (RX may be), since zeroing an RZ would drop a real phase.
 
 ### `strip` — dropping boundary rotations
@@ -161,13 +161,13 @@ for name, peak in iter_challenges("moderate"):
 
 ```python
 from quantum_hack import (
-    load_circuit, strip_rz_and_cx_from_start, snap_rotations_to_pi_over_4,
+    load_circuit, strip_rz_and_cx_from_start, snap_rotations_to_pi_over_8,
     transpile_to_basis, compare_circuits, circuits_equivalent,
 )
 
 qc = load_circuit("qasm_data/easy/challenge-16_12.qasm")
 optimized = transpile_to_basis(
-    snap_rotations_to_pi_over_4(strip_rz_and_cx_from_start(qc), threshold=0.02),
+    snap_rotations_to_pi_over_8(strip_rz_and_cx_from_start(qc), threshold=0.02),
     optimization_level=2,
 )
 print(compare_circuits(qc, optimized))      # how much smaller?

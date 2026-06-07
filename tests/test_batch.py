@@ -4,6 +4,7 @@ import pytest
 from qiskit import QuantumCircuit, qasm2
 
 from quantum_hack.batch import (
+    build_parser,
     compare_cache_to_results,
     failed_challenges,
     list_jobs,
@@ -275,6 +276,52 @@ def test_compare_cache_to_results_classifies_each_case(tmp_path):
 
     failed = {c.challenge for c in failed_challenges(results)}
     assert failed == {"challenge-2_2", "challenge-2_3"}
+
+
+def test_optimize_flag_defaults_off():
+    args = build_parser().parse_args([])
+    assert args.optimize is False
+
+
+def test_run_batch_without_optimize_leaves_notes_unannotated(tmp_path):
+    data = _make_dataset(tmp_path)
+    results = run_batch(data_dir=data, results_dir=tmp_path / "r", solver=_CountingSolver())
+    assert all(not r.notes.startswith("optimize[") for r in results)
+
+
+def test_run_batch_optimize_records_applied_steps(tmp_path):
+    data = _make_dataset(tmp_path)
+    results = run_batch(
+        data_dir=data, results_dir=tmp_path / "r", optimize=True, solver=_CountingSolver()
+    )
+    assert results
+    for r in results:
+        assert r.notes.startswith("optimize[steps=")
+        assert "guarantee=" in r.notes
+
+
+def test_run_batch_optimize_prepends_to_existing_notes(tmp_path):
+    data = _make_dataset(tmp_path)
+
+    def _noted_solver(qc, *, challenge=None, records=None, **kwargs):
+        return PeakResult(
+            bitstring="0" * qc.num_qubits,
+            probability=0.5,
+            method="stub",
+            num_qubits=qc.num_qubits,
+            confidence=0.5,
+            notes="solver note",
+        )
+
+    results = run_batch(
+        data_dir=data,
+        results_dir=tmp_path / "r",
+        challenge="challenge-2_1",
+        optimize=True,
+        solver=_noted_solver,
+    )
+    assert results[0].notes.startswith("optimize[")
+    assert results[0].notes.endswith("solver note")
 
 
 def test_solve_job_uses_cache_on_resume(tmp_path):

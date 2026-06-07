@@ -46,7 +46,7 @@ from quantum_hack.strip import (
     strip_rz_from_end,
     strip_rz_from_start,
 )
-from quantum_hack.transform import snap_rotations_to_pi_over_4, transpile_to_basis
+from quantum_hack.transform import snap_rotations_to_pi_over_8, transpile_to_basis
 from quantum_hack.verification import circuits_equivalent, verify_equivalence
 from quantum_hack.viz import (
     cx_only_circuit,
@@ -91,7 +91,7 @@ __all__ = [
     "strip_rz_from_start",
     "strip_rz_from_end",
     "strip",
-    "snap_rotations_to_pi_over_4",
+    "snap_rotations_to_pi_over_8",
     "transpile_to_basis",
     # metrics / verification
     "circuit_stats",
