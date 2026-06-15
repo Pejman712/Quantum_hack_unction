@@ -14,7 +14,7 @@
 # Tunables (--export=ALL,VAR=value on the sbatch line):
 #   QASM         explicit path to a single .qasm (takes priority over DIFFICULTY)
 #   DIFFICULTY   tier subfolder under qasm_data/  (used with --array)
-#   MAX_BOND     MPO max bond dimension            (default 64)
+#   MAX_BOND     MPO max bond dimension            (default 512)
 #   MAX_ITS      max unswap iterations             (default 1024)
 #   CUTOFF       SVD truncation cutoff             (default 0.002)
 #   SAMPLES      MPS sampling shots                (default 10000)
@@ -35,7 +35,7 @@ set -uo pipefail
 # ── tunables ─────────────────────────────────────────────────────────────────
 QASM="${QASM:-}"
 DIFFICULTY="${DIFFICULTY:-}"
-MAX_BOND="${MAX_BOND:-64}"
+MAX_BOND="${MAX_BOND:-512}"
 MAX_ITS="${MAX_ITS:-1024}"
 CUTOFF="${CUTOFF:-0.002}"
 SAMPLES="${SAMPLES:-10000}"

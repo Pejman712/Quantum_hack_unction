@@ -1,0 +1,10 @@
+[project]
+name = "transformer-nqs"
+version = "0.1.0"
+description = "Autoregressive transformer neural quantum state for peaked circuit simulation"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "numpy",
+    "pytest",
+]
