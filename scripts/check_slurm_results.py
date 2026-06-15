@@ -11,6 +11,7 @@ Usage:
     # Check files from a specific difficulty tier only:
     python scripts/check_slurm_results.py --difficulty easy slurm-unswap-*.out
 """
+from __future__ import annotations
 
 import argparse
 import csv

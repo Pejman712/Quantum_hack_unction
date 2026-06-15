@@ -87,7 +87,7 @@ def merge_gates(gates, num_qubits=None):
 
 DEVICE = "cuda:0"
 def to_backend_cuda(x, device=DEVICE):
-    return torch.tensor(x, dtype=torch.complex128, device=device)
+    return torch.tensor(x, dtype=torch.complex64, device=device)
 
 
 # ------------------------------------------------------------------
