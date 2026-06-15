@@ -3,15 +3,14 @@ Compare top bitstrings from SLURM unswap job output files against CSV ground tru
 
 Usage:
     # Check all .out files in current directory:
-    python scripts/check_slurm_results.py
+    python3 scripts/check_slurm_results.py
 
     # Check specific files or a glob:
-    python scripts/check_slurm_results.py slurm-unswap-*.out
+    python3 scripts/check_slurm_results.py slurm-unswap-*.out
 
     # Check files from a specific difficulty tier only:
-    python scripts/check_slurm_results.py --difficulty easy slurm-unswap-*.out
+    python3 scripts/check_slurm_results.py --difficulty easy slurm-unswap-*.out
 """
-from __future__ import annotations
 
 import argparse
 import csv
@@ -22,12 +21,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "results"
 
-DIFFICULTY_ORDER = ["very_easy", "easy", "moderate", "hard", "very_hard"]
 
-
-def load_ground_truth() -> dict[str, str]:
+def load_ground_truth():
     """Return {challenge_name: bitstring} from all result CSVs (last success wins)."""
-    gt: dict[str, str] = {}
+    gt = {}
     for csv_path in RESULTS_DIR.glob("*_bitstrings.csv"):
         with csv_path.open() as f:
             for row in csv.DictReader(f):
@@ -36,7 +33,7 @@ def load_ground_truth() -> dict[str, str]:
     return gt
 
 
-def parse_out_file(path: Path) -> tuple[str | None, str | None]:
+def parse_out_file(path):
     """Return (challenge_name, top_bitstring) extracted from a SLURM .out file."""
     challenge = None
     bitstring = None
@@ -52,7 +49,7 @@ def parse_out_file(path: Path) -> tuple[str | None, str | None]:
     return challenge, bitstring
 
 
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser(description="Validate unswap SLURM outputs against CSV ground truth")
     parser.add_argument("outfiles", nargs="*", help=".out files to check (default: slurm-unswap-*.out)")
     parser.add_argument("--difficulty", help="Filter to a specific difficulty tier")
@@ -80,10 +77,10 @@ def main() -> None:
             skipped.append((path.name, "no 'Circuit :' line found (job may still be running or crashed early)"))
             continue
         if bitstring is None:
-            skipped.append((path.name, f"{challenge} — no 'Top bitstring:' line (job incomplete or failed)"))
+            skipped.append((path.name, "{} -- no 'Top bitstring:' line (job incomplete or failed)".format(challenge)))
             continue
         if challenge not in gt:
-            skipped.append((path.name, f"{challenge} — not in any results CSV"))
+            skipped.append((path.name, "{} -- not in any results CSV".format(challenge)))
             continue
 
         expected = gt[challenge]
@@ -92,28 +89,28 @@ def main() -> None:
         else:
             failed.append((challenge, bitstring, expected, path.name))
 
-    print(f"\n{'='*70}")
-    print(f"  Unswap result check — {len(paths)} file(s)")
-    print(f"{'='*70}")
+    print("\n" + "=" * 70)
+    print("  Unswap result check -- {} file(s)".format(len(paths)))
+    print("=" * 70)
 
     if passed:
-        print(f"\n  PASS ({len(passed)})")
+        print("\n  PASS ({})".format(len(passed)))
         for challenge, bs, fname in passed:
-            print(f"    [OK] {challenge:35s}  {bs}  ({fname})")
+            print("    [OK] {:<35}  {}  ({})".format(challenge, bs, fname))
 
     if failed:
-        print(f"\n  FAIL ({len(failed)})")
+        print("\n  FAIL ({})".format(len(failed)))
         for challenge, got, expected, fname in failed:
-            print(f"    [XX] {challenge:35s}  got      {got}")
-            print(f"         {' '*35}  expected {expected}  ({fname})")
+            print("    [XX] {:<35}  got      {}".format(challenge, got))
+            print("         {:<35}  expected {}  ({})".format("", expected, fname))
 
     if skipped:
-        print(f"\n  SKIPPED ({len(skipped)})")
+        print("\n  SKIPPED ({})".format(len(skipped)))
         for name, reason in skipped:
-            print(f"    [--] {name}: {reason}")
+            print("    [--] {}: {}".format(name, reason))
 
-    print(f"\n  Result: {len(passed)} passed, {len(failed)} failed, {len(skipped)} skipped")
-    print(f"{'='*70}\n")
+    print("\n  Result: {} passed, {} failed, {} skipped".format(len(passed), len(failed), len(skipped)))
+    print("=" * 70 + "\n")
 
     sys.exit(1 if failed else 0)
 
