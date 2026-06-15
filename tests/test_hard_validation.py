@@ -50,12 +50,12 @@ _GT = _ground_truth()
     sorted(_GT.items()),
     ids=sorted(_GT.keys()),
 )
-def test_mps_matches_csv_bitstring(challenge: str, expected: str, bond_dim: int) -> None:
+def test_mps_matches_csv_bitstring(challenge: str, expected: str, bond_dim: int, device: str) -> None:
     """MPS prediction for each hard challenge must match the CSV success entry."""
     qasm_path = find_challenge(challenge, data_dir=DATA_DIR / "hard")
     qc = load_circuit(qasm_path)
 
-    predicted, prob = matrix_product_operators(qc, shots=4096, bond_dim=bond_dim)
+    predicted, prob = matrix_product_operators(qc, shots=4096, bond_dim=bond_dim, device=device)
 
     assert predicted == expected, (
         f"{challenge}: MPS predicted {predicted!r} (prob={prob:.3f}) "

@@ -150,6 +150,8 @@ def mps_sample_counts(
     bond_dim: int = 64,
     *,
     device: str = "CPU",
+    precision: str = "single",
+    truncation_threshold: float = 1e-6,
 ) -> dict[str, int]:
     """Sample measurement counts via the matrix-product-state (MPS) simulator.
 
@@ -161,7 +163,12 @@ def mps_sample_counts(
         qc (QuantumCircuit): Circuit to sample.
         shots (int): Number of measurement shots to draw.
         bond_dim (int): Maximum MPS bond dimension.
-        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI ``standard-g``).
+        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI/Puhti).
+        precision (str): ``"single"`` (default) or ``"double"``. Single is ~2× faster and
+            uses half the memory; sufficient for peaked circuits where the peak is large.
+        truncation_threshold (float): SVD singular-value cutoff (default ``1e-6``). Aer drops
+            singular values below this before reaching the bond-dim cap, keeping the effective
+            bond dim low throughout the circuit and reducing O(χ³) SVD cost.
 
     Returns:
         dict[str, int]: Mapping of measured bitstring to shot count (Qiskit ordering).
@@ -173,6 +180,8 @@ def mps_sample_counts(
     sim = AerSimulator(
         method="matrix_product_state",
         matrix_product_state_max_bond_dimension=bond_dim,
+        matrix_product_state_truncation_threshold=truncation_threshold,
+        precision=precision,
         device=device,
     )
 
@@ -216,6 +225,8 @@ def matrix_product_operators(
     *,
     top_n: None = ...,
     device: str = ...,
+    precision: str = ...,
+    truncation_threshold: float = ...,
 ) -> tuple[str, float]: ...
 @overload
 def matrix_product_operators(
@@ -226,6 +237,8 @@ def matrix_product_operators(
     *,
     top_n: int,
     device: str = ...,
+    precision: str = ...,
+    truncation_threshold: float = ...,
 ) -> list[tuple[str, float]]: ...
 def matrix_product_operators(
     qc: QuantumCircuit,
@@ -235,6 +248,8 @@ def matrix_product_operators(
     *,
     top_n: int | None = None,
     device: str = "CPU",
+    precision: str = "single",
+    truncation_threshold: float = 1e-6,
 ) -> tuple[str, float] | list[tuple[str, float]]:
     """Estimate the most likely bitstring via shot-based MPS sampling.
 
@@ -248,7 +263,9 @@ def matrix_product_operators(
         verbose (bool): If ``True``, print the result(s).
         top_n (int | None): If ``None`` (default), return only the single peak. If a
             positive integer, return the ``top_n`` most sampled bitstrings instead.
-        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI ``standard-g``).
+        device (str): Aer device, ``"CPU"`` (default) or ``"GPU"`` (LUMI/Puhti).
+        precision (str): ``"single"`` (default) or ``"double"``.
+        truncation_threshold (float): SVD cutoff passed to Aer (default ``1e-6``).
 
     Returns:
         tuple[str, float] | list[tuple[str, float]]: When ``top_n`` is ``None``, the
@@ -259,7 +276,10 @@ def matrix_product_operators(
     Raises:
         ValueError: If ``top_n`` is given and is less than 1.
     """
-    counts = mps_sample_counts(qc, shots=shots, bond_dim=bond_dim, device=device)
+    counts = mps_sample_counts(
+        qc, shots=shots, bond_dim=bond_dim, device=device,
+        precision=precision, truncation_threshold=truncation_threshold,
+    )
     probs = {bitstring: count / shots for bitstring, count in counts.items()}
 
     if top_n is not None:

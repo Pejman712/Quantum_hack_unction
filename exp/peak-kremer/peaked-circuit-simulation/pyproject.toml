@@ -13,4 +13,5 @@ dependencies = [
     "pandas",
     "matplotlib",
     "jupyter",
+    "cuquantum-python-cu12>=25.3.0.post0",
 ]

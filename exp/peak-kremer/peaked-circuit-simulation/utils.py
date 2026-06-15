@@ -7,6 +7,52 @@ from quimb.tensor.tensor_arbgeom_compress import tensor_network_ag_compress
 from qiskit_quimb import quimb_circuit
 import torch
 
+# cuSOLVER's default driver for complex64 SVD (gesvda/gesvd) fails to converge
+# on ill-conditioned unitary tensors that arise in MPO compression.
+# gesvdj (Jacobi) is slower but handles these cases correctly.
+# Falls back to FP64 as a last resort so the run never crashes.
+_real_linalg_svd = torch.linalg.svd
+
+def _robust_svd(A, full_matrices=True, *, driver=None, out=None):
+    if not A.is_cuda or driver is not None:
+        return _real_linalg_svd(A, full_matrices=full_matrices, driver=driver, out=out)
+
+    # Normalize to unit Frobenius norm before every attempt.  FP32 MPO tensors
+    # can span many orders of magnitude; values rounded to 0 create exactly
+    # degenerate columns that defeat iterative SVD algorithms.  Normalizing
+    # puts all values in [-1, 1] where convergence is reliable.
+    scale = torch.linalg.matrix_norm(A, ord='fro').clamp(min=1e-30)
+    An = A / scale
+
+    # 1. gesvdj on normalized FP32
+    try:
+        U, S, Vh = _real_linalg_svd(An, full_matrices=full_matrices, driver='gesvdj', out=out)
+        return U, (S * scale).to(torch.float32), Vh
+    except (torch._C._LinAlgError, RuntimeError):
+        pass
+
+    # 2. gesvdj on normalized FP64
+    try:
+        An64 = An.to(torch.complex128)
+        U, S, Vh = _real_linalg_svd(An64, full_matrices=full_matrices, driver='gesvdj', out=None)
+        return U.to(A.dtype), (S * scale).to(torch.float32), Vh.to(A.dtype)
+    except (torch._C._LinAlgError, RuntimeError):
+        pass
+
+    # 3. CPU LAPACK zgesdd — divide-and-conquer, not iterative; handles exact
+    #    degeneracy that defeats all CUDA Jacobi-based drivers.
+    import numpy as np
+    A_np = An.cpu().numpy()
+    U_np, S_np, Vh_np = np.linalg.svd(A_np, full_matrices=False)
+    s = float(scale.item())
+    return (
+        torch.from_numpy(U_np).to(device=A.device, dtype=A.dtype),
+        torch.from_numpy(S_np * s).to(device=A.device, dtype=torch.float32),
+        torch.from_numpy(Vh_np).to(device=A.device, dtype=A.dtype),
+    )
+
+torch.linalg.svd = _robust_svd
+
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 
 

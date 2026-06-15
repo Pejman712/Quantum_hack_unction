@@ -13,8 +13,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Tensor-network amplitude/marginal backend for large circuits. GPU Aer on LUMI comes from the
-# CSC Qiskit container (qiskit-aer-gpu-rocm), not from PyPI, so it is not listed here.
+# CUDA GPU acceleration for local NVIDIA GPUs (RTX/V100 etc).
+# Replaces qiskit-aer with the GPU build: uv pip uninstall qiskit-aer && uv pip install qiskit-aer-gpu
+# On LUMI (AMD) the CSC container provides qiskit-aer-gpu-rocm instead — not on PyPI.
+gpu = ["qiskit-aer-gpu>=0.15.1"]
+# Tensor-network amplitude/marginal backend for large circuits.
 tn = ["quimb>=1.8", "cotengra>=0.6", "autoray>=0.6", "opt-einsum>=3.3"]
 # ZX-calculus circuit optimisation (quantum_hack.transform.optimize_with_pyzx). Optional: the
 # optimize pipeline simply skips the pyzx step when it is not installed.
