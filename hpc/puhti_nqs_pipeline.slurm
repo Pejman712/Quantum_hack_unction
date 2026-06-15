@@ -59,6 +59,28 @@
 #SBATCH --gres=gpu:v100:1
 #SBATCH --output=logs/nqs_%x_%j.out
 
+# ── --submit mode: runs on the login node, not inside SLURM ──────────────────
+# Must come before set -uo pipefail and before any ${SLURM_*} references.
+if [[ "${1:-}" == "--submit" ]]; then
+    SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/puhti_nqs_pipeline.slurm"
+
+    echo "Submitting supervised job..."
+    SUP_JOB=$(sbatch --export=ALL,STAGE=supervised --parsable "$SCRIPT")
+    echo "  Supervised job ID: $SUP_JOB"
+
+    echo "Submitting VMC job (starts after supervised succeeds)..."
+    VMC_JOB=$(sbatch --dependency=afterok:"$SUP_JOB" \
+                     --export=ALL,STAGE=vmc --parsable "$SCRIPT")
+    echo "  VMC job ID: $VMC_JOB"
+
+    echo ""
+    echo "Monitor:"
+    echo "  squeue --jobs $SUP_JOB,$VMC_JOB"
+    echo "  tail -f logs/nqs_nqs-pipeline_${SUP_JOB}.out"
+    echo "  tail -f logs/nqs_nqs-pipeline_${VMC_JOB}.out"
+    exit 0
+fi
+
 set -uo pipefail
 
 # ── tunables ──────────────────────────────────────────────────────────────────
@@ -189,39 +211,3 @@ else
     exit 1
 fi
 
-# ════════════════════════════════════════════════════════════════════════════════
-# AUTO-SUBMIT MODE
-# When called as:  bash hpc/puhti_nqs_pipeline.slurm --submit
-# this script submits both stages with a SLURM job dependency so the VMC job
-# starts automatically after the supervised job finishes successfully.
-# ════════════════════════════════════════════════════════════════════════════════
-if [[ "${1:-}" == "--submit" ]]; then
-    # We are running on the login node (not inside SLURM), so SLURM_SUBMIT_DIR
-    # is not set.  Use the script's directory instead.
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    SUBMIT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-    echo "Submitting supervised job..."
-    SUP_JOB=$(sbatch \
-        --export=ALL,STAGE=supervised \
-        --parsable \
-        "$SCRIPT_DIR/puhti_nqs_pipeline.slurm")
-    echo "  Supervised job ID: $SUP_JOB"
-
-    echo "Submitting VMC job (depends on $SUP_JOB)..."
-    VMC_JOB=$(sbatch \
-        --dependency=afterok:"$SUP_JOB" \
-        --export=ALL,STAGE=vmc \
-        --parsable \
-        "$SCRIPT_DIR/puhti_nqs_pipeline.slurm")
-    echo "  VMC job ID: $VMC_JOB"
-
-    echo ""
-    echo "Pipeline submitted:"
-    echo "  squeue --jobs $SUP_JOB,$VMC_JOB"
-    echo ""
-    echo "Monitor logs:"
-    echo "  tail -f logs/nqs_nqs-pipeline_${SUP_JOB}.out"
-    echo "  tail -f logs/nqs_nqs-pipeline_${VMC_JOB}.out"
-    exit 0
-fi
