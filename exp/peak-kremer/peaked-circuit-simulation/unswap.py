@@ -282,7 +282,7 @@ def mpo_compress_unswap(circuit: QuantumCircuit, max_bond=8192, cutoff=0.001, un
     # race to do this simultaneously the second raises "lazy wrapper should be
     # called at most once". Trigger it once here, before the thread pool starts.
     _warm = mpo_core.arrays[0]
-    if hasattr(_warm, 'device'):
+    if hasattr(_warm, 'device') and hasattr(_warm, 'expand'):
         import torch as _torch
         _d = _warm.reshape(-1)[:1].expand(2).reshape(1, 2)
         _torch.linalg.qr(_d)
